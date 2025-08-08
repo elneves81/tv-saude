@@ -1,0 +1,92 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #000;
+  color: white;
+  overflow: hidden;
+}
+
+/* Esconder cursor para modo TV */
+* {
+  cursor: none !important;
+}
+
+/* Animações suaves */
+.fade-in {
+  animation: fadeIn 1s ease-in-out;
+}
+
+.fade-out {
+  animation: fadeOut 1s ease-in-out;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes fadeOut {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* Estilo para vídeos */
+video {
+  width: 100%;
+  height: 100vh;
+  object-fit: cover;
+}
+
+/* Loading spinner */
+.spinner {
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #3498db;
+  border-radius: 50%;
+  width: 50px;
+  height: 50px;
+  animation: spin 2s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Overlay de informações */
+.video-overlay {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(transparent, rgba(0,0,0,0.8));
+  padding: 2rem;
+  z-index: 10;
+}
+
+/* Header da TV */
+.tv-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(rgba(0,0,0,0.8), transparent);
+  padding: 1rem 2rem;
+  z-index: 10;
+}
+
+/* Responsividade */
+@media (max-width: 768px) {
+  .video-overlay,
+  .tv-header {
+    padding: 1rem;
+  }
+}
