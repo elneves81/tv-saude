@@ -1,9 +1,10 @@
-import React, { useState, useEffect } from 'react';
+   import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL, getUploadsUrl } from '../config/api';
 import { useNotification } from '../contexts/NotificationContext';
 
-const API_BASE_URL = 'http://localhost:3001/api';
+
 
 const VideoList = () => {
   const [videos, setVideos] = useState([]);
@@ -177,8 +178,12 @@ const VideoList = () => {
                     <td className="table-cell">
                       <div className="flex items-center">
                         <div className="flex-shrink-0 h-12 w-20">
-                          <div className="h-12 w-20 bg-gray-300 rounded flex items-center justify-center">
-                            <span className="text-gray-500">🎥</span>
+                          <div className={`h-12 w-20 rounded flex items-center justify-center ${
+                            video.tipo === 'youtube' ? 'bg-red-100' : 'bg-blue-100'
+                          }`}>
+                            <span className={video.tipo === 'youtube' ? 'text-red-600' : 'text-blue-600'}>
+                              {video.tipo === 'youtube' ? '📺' : '🎥'}
+                            </span>
                           </div>
                         </div>
                         <div className="ml-4">
@@ -190,6 +195,9 @@ const VideoList = () => {
                               {video.descricao}
                             </div>
                           )}
+                          <div className="text-xs text-gray-400 mt-1">
+                            {video.tipo === 'youtube' ? 'YouTube' : 'Upload Local'}
+                          </div>
                         </div>
                       </div>
                     </td>

@@ -1,9 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL, getUploadsUrl } from '../config/api';
 import { useNotification } from '../contexts/NotificationContext';
 
-const API_BASE_URL = 'http://localhost:3001/api';
+
 
 const VideoEdit = () => {
   const { id } = useParams();
@@ -18,7 +19,8 @@ const VideoEdit = () => {
     descricao: '',
     categoria: '',
     ordem: 0,
-    ativo: true
+    ativo: true,
+    url_youtube: ''
   });
 
   const categorias = [
@@ -52,7 +54,8 @@ const VideoEdit = () => {
         descricao: videoData.descricao || '',
         categoria: videoData.categoria || '',
         ordem: videoData.ordem || 0,
-        ativo: videoData.ativo !== undefined ? videoData.ativo : true
+        ativo: videoData.ativo !== undefined ? videoData.ativo : true,
+        url_youtube: videoData.url_youtube || ''
       });
     } catch (error) {
       console.error('Erro ao buscar vídeo:', error);
@@ -69,6 +72,12 @@ const VideoEdit = () => {
       ...prev,
       [name]: type === 'checkbox' ? checked : value
     }));
+  };
+
+  // Validar URL do YouTube
+  const isValidYouTubeUrl = (url) => {
+    const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+    return regex.test(url);
   };
 
   const handleSubmit = async (e) => {
@@ -169,7 +178,7 @@ const VideoEdit = () => {
                   poster="/api/placeholder/640/360"
                 >
                   <source 
-                    src={`http://localhost:3001/uploads/${video.arquivo}`} 
+                    src={`${getUploadsUrl(video.arquivo)}`} 
                     type="video/mp4" 
                   />
                   Seu navegador não suporta reprodução de vídeo.
@@ -264,6 +273,28 @@ const VideoEdit = () => {
               </p>
             </div>
 
+            {/* URL do YouTube (se for vídeo do YouTube) */}
+            {video.tipo === 'youtube' && (
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  URL do YouTube
+                </label>
+                <input
+                  type="url"
+                  name="url_youtube"
+                  value={formData.url_youtube}
+                  onChange={handleInputChange}
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  className="input-field"
+                />
+                {formData.url_youtube && !isValidYouTubeUrl(formData.url_youtube) && (
+                  <p className="text-red-500 text-xs mt-1">
+                    URL inválida. Use o formato: https://www.youtube.com/watch?v=...
+                  </p>
+                )}
+              </div>
+            )}
+
             {/* Descrição */}
             <div className="md:col-span-2">
               <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -333,7 +364,7 @@ const VideoEdit = () => {
                   <head><title>${video.titulo}</title></head>
                   <body style="margin:0;background:#000;">
                     <video controls autoplay style="width:100%;height:100vh;object-fit:contain;">
-                      <source src="http://localhost:3001/uploads/${video.arquivo}" type="video/mp4">
+                      <source src="${getUploadsUrl(video.arquivo)}" type="video/mp4">
                     </video>
                   </body>
                 </html>
@@ -345,7 +376,7 @@ const VideoEdit = () => {
           </button>
           
           <a
-            href={`http://localhost:3001/uploads/${video.arquivo}`}
+            href={`${getUploadsUrl(video.arquivo)}`}
             download={video.titulo}
             className="btn-secondary text-sm"
           >

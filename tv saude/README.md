@@ -59,7 +59,16 @@ O sistema inclui scripts para instalação fácil:
 ./install-dependencies.bat
 ```
 
-### 3. Iniciar os Serviços
+### 3. Configurar Acesso de Rede (Opcional)
+
+Para permitir acesso de outros dispositivos na rede:
+
+```bash
+# Execute como Administrador para configurar o firewall
+./configurar-firewall.bat
+```
+
+### 4. Iniciar os Serviços
 
 **Opção 1: Usando o script de inicialização**
 ```bash
@@ -89,6 +98,34 @@ cd dashboard-admin
 npm run dev
 ```
 *Dashboard em: http://localhost:3002*
+
+## 🌐 Acesso de Rede
+
+O sistema foi configurado para permitir acesso de qualquer dispositivo na rede local:
+
+### URLs de Acesso Local
+- **Backend API:** http://localhost:3001
+- **Interface da TV:** http://localhost:3000  
+- **Dashboard Admin:** http://localhost:3002
+
+### URLs de Acesso de Rede
+Substitua `[IP_DA_MAQUINA]` pelo IP mostrado no script de inicialização:
+- **Backend API:** http://[IP_DA_MAQUINA]:3001
+- **Interface da TV:** http://[IP_DA_MAQUINA]:3000
+- **Dashboard Admin:** http://[IP_DA_MAQUINA]:3002
+
+### Funcionalidades Disponíveis pela Rede
+- ✅ Upload de vídeos de qualquer dispositivo
+- ✅ Gerenciamento de playlists remotamente
+- ✅ Controle remoto das TVs
+- ✅ Acesso ao dashboard administrativo
+- ✅ Transferência de vídeos pela rede
+
+### Scripts de Configuração
+- **`configurar-firewall.bat`**: Configura o firewall do Windows (executar como Admin)
+- **`remover-firewall.bat`**: Remove as configurações do firewall (executar como Admin)
+
+📖 **Para instruções detalhadas de acesso de rede, consulte:** `ACESSO-REDE.md`
 
 ## 📋 Como Usar
 

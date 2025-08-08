@@ -1,8 +1,10 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 const Sidebar = ({ isOpen, onClose }) => {
   const location = useLocation();
+  const { user, logout, isAdmin } = useAuth();
 
   const menuItems = [
     {
@@ -21,6 +23,26 @@ const Sidebar = ({ isOpen, onClose }) => {
       icon: '📤'
     },
     {
+      path: '/playlists',
+      name: 'Playlists',
+      icon: '📋'
+    },
+    {
+      path: '/controle',
+      name: 'Controle Remoto',
+      icon: '📱'
+    },
+    {
+      path: '/messages',
+      name: 'Mensagens',
+      icon: '📢'
+    },
+    ...(isAdmin() ? [{
+      path: '/users',
+      name: 'Usuários',
+      icon: '👥'
+    }] : []),
+    {
       path: '/settings',
       name: 'Configurações',
       icon: '⚙️'
@@ -29,6 +51,11 @@ const Sidebar = ({ isOpen, onClose }) => {
 
   const isActive = (path) => {
     return location.pathname === path;
+  };
+
+  const handleLogout = () => {
+    logout();
+    onClose();
   };
 
   return (
@@ -48,7 +75,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         ${isOpen ? 'translate-x-0' : '-translate-x-full'}
       `}>
         {/* Logo */}
-        <div className="flex items-center justify-center h-16 bg-blue-600 text-white">
+        <div className="flex items-center justify-center h-16 text-white bg-blue-600">
           <div className="flex items-center space-x-2">
             <span className="text-2xl">🏥</span>
             <div>
@@ -59,7 +86,7 @@ const Sidebar = ({ isOpen, onClose }) => {
         </div>
 
         {/* Navigation */}
-        <nav className="mt-8">
+        <nav className="flex-1 mt-8">
           <div className="px-4 space-y-2">
             {menuItems.map((item) => (
               <Link
@@ -81,12 +108,35 @@ const Sidebar = ({ isOpen, onClose }) => {
           </div>
         </nav>
 
-        {/* Footer info */}
-        <div className="absolute bottom-0 left-0 right-0 p-4 border-t border-gray-200">
-          <div className="text-center text-sm text-gray-500">
-            <p>Sistema TV Saúde</p>
+        {/* User info and logout */}
+        <div className="absolute bottom-0 left-0 right-0 border-t border-gray-200">
+          <div className="p-4">
+            <div className="flex items-center mb-3">
+              <div className="flex items-center justify-center w-10 h-10 font-medium text-white bg-blue-600 rounded-full">
+                {user?.nome?.charAt(0)?.toUpperCase()}
+              </div>
+              <div className="flex-1 min-w-0 ml-3">
+                <p className="text-sm font-medium text-gray-900 truncate">
+                  {user?.nome}
+                </p>
+                <p className="text-xs text-gray-500 truncate">
+                  {user?.tipo === 'admin' ? 'Administrador' : 'Operador'}
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={handleLogout}
+              className="flex items-center justify-center w-full px-3 py-2 text-sm text-gray-700 transition-colors rounded-md hover:bg-gray-100"
+            >
+              <span className="mr-2">🚪</span>
+              Sair
+            </button>
+          </div>
+          
+          {/* Footer info */}
+          <div className="px-4 pb-4 text-xs text-center text-gray-400">
+            <p>Sistema TV Saúde v1.0.0</p>
             <p>Guarapuava - PR</p>
-            <p className="text-xs mt-1">v1.0.0</p>
           </div>
         </div>
       </div>

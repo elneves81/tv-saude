@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { API_BASE_URL, getUploadsUrl } from '../config/api';
 import { useNotification } from '../contexts/NotificationContext';
 
-const API_BASE_URL = 'http://localhost:3001/api';
+
 
 const VideoUpload = () => {
   const navigate = useNavigate();
@@ -13,13 +14,15 @@ const VideoUpload = () => {
     titulo: '',
     descricao: '',
     categoria: '',
-    ordem: 0
+    ordem: 0,
+    url_youtube: ''
   });
   
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [dragOver, setDragOver] = useState(false);
+  const [uploadType, setUploadType] = useState('local'); // 'local' ou 'youtube'
 
   const categorias = [
     'Prevenção',
@@ -84,12 +87,29 @@ const VideoUpload = () => {
     handleFileSelect(droppedFile);
   };
 
+  // Validar URL do YouTube
+  const isValidYouTubeUrl = (url) => {
+    const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+    return regex.test(url);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    if (!file) {
-      showError('Por favor, selecione um arquivo de vídeo');
-      return;
+    if (uploadType === 'local') {
+      if (!file) {
+        showError('Por favor, selecione um arquivo de vídeo');
+        return;
+      }
+    } else if (uploadType === 'youtube') {
+      if (!formData.url_youtube.trim()) {
+        showError('Por favor, informe a URL do YouTube');
+        return;
+      }
+      if (!isValidYouTubeUrl(formData.url_youtube)) {
+        showError('Por favor, informe uma URL válida do YouTube');
+        return;
+      }
     }
     
     if (!formData.titulo.trim()) {
@@ -101,27 +121,44 @@ const VideoUpload = () => {
     setUploadProgress(0);
 
     try {
-      const uploadData = new FormData();
-      uploadData.append('video', file);
-      uploadData.append('titulo', formData.titulo);
-      uploadData.append('descricao', formData.descricao);
-      uploadData.append('categoria', formData.categoria || 'Geral');
-      uploadData.append('ordem', formData.ordem);
+      if (uploadType === 'youtube') {
+        // Envio de vídeo do YouTube
+        const response = await axios.post(`${API_BASE_URL}/videos`, {
+          titulo: formData.titulo,
+          descricao: formData.descricao,
+          categoria: formData.categoria || 'Geral',
+          ordem: formData.ordem,
+          tipo: 'youtube',
+          url_youtube: formData.url_youtube
+        });
 
-      const response = await axios.post(`${API_BASE_URL}/videos`, uploadData, {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        onUploadProgress: (progressEvent) => {
-          const progress = Math.round(
-            (progressEvent.loaded * 100) / progressEvent.total
-          );
-          setUploadProgress(progress);
-        },
-      });
+        showSuccess('Vídeo do YouTube adicionado com sucesso!');
+        navigate('/videos');
+      } else {
+        // Upload local (comportamento original)
+        const uploadData = new FormData();
+        uploadData.append('video', file);
+        uploadData.append('titulo', formData.titulo);
+        uploadData.append('descricao', formData.descricao);
+        uploadData.append('categoria', formData.categoria || 'Geral');
+        uploadData.append('ordem', formData.ordem);
+        uploadData.append('tipo', 'local');
 
-      showSuccess('Vídeo enviado com sucesso!');
-      navigate('/videos');
+        const response = await axios.post(`${API_BASE_URL}/videos`, uploadData, {
+          headers: {
+            'Content-Type': 'multipart/form-data',
+          },
+          onUploadProgress: (progressEvent) => {
+            const progress = Math.round(
+              (progressEvent.loaded * 100) / progressEvent.total
+            );
+            setUploadProgress(progress);
+          },
+        });
+
+        showSuccess('Vídeo enviado com sucesso!');
+        navigate('/videos');
+      }
       
     } catch (error) {
       console.error('Erro ao enviar vídeo:', error);
@@ -149,54 +186,144 @@ const VideoUpload = () => {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* File Upload Area */}
+        {/* Tipo de Upload */}
         <div className="card">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Arquivo de Vídeo</h2>
-          
-          <div
-            className={`drag-area ${dragOver ? 'drag-over' : ''}`}
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-          >
-            {file ? (
+          <h2 className="text-lg font-semibold text-gray-900 mb-4">Tipo de Conteúdo</h2>
+          <div className="flex space-x-4">
+            <button
+              type="button"
+              onClick={() => {
+                setUploadType('local');
+                setFile(null);
+                setFormData(prev => ({ ...prev, url_youtube: '' }));
+              }}
+              className={`flex-1 p-4 border-2 rounded-lg transition-colors ${
+                uploadType === 'local'
+                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                  : 'border-gray-300 hover:border-gray-400'
+              }`}
+            >
               <div className="text-center">
-                <div className="text-4xl mb-2">🎥</div>
-                <p className="text-lg font-medium text-gray-900">{file.name}</p>
-                <p className="text-sm text-gray-500">
-                  {formatFileSize(file.size)} • {file.type}
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setFile(null)}
-                  className="mt-2 text-red-600 hover:text-red-800 text-sm font-medium"
-                >
-                  Remover arquivo
-                </button>
+                <div className="text-3xl mb-2">📁</div>
+                <div className="font-medium">Upload Local</div>
+                <div className="text-sm text-gray-500">Enviar arquivo do computador</div>
               </div>
-            ) : (
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                setUploadType('youtube');
+                setFile(null);
+              }}
+              className={`flex-1 p-4 border-2 rounded-lg transition-colors ${
+                uploadType === 'youtube'
+                  ? 'border-red-500 bg-red-50 text-red-700'
+                  : 'border-gray-300 hover:border-gray-400'
+              }`}
+            >
               <div className="text-center">
-                <div className="text-4xl mb-4">📤</div>
-                <p className="text-lg font-medium text-gray-900 mb-2">
-                  Arraste e solte seu vídeo aqui
-                </p>
-                <p className="text-gray-500 mb-4">ou</p>
-                <label className="btn-primary cursor-pointer">
-                  Selecionar Arquivo
-                  <input
-                    type="file"
-                    accept="video/*"
-                    onChange={handleFileChange}
-                    className="hidden"
-                  />
-                </label>
-                <p className="text-xs text-gray-500 mt-2">
-                  Formatos suportados: MP4, AVI, MOV, WMV (máx. 500MB)
-                </p>
+                <div className="text-3xl mb-2">📺</div>
+                <div className="font-medium">YouTube</div>
+                <div className="text-sm text-gray-500">Adicionar vídeo do YouTube</div>
               </div>
-            )}
+            </button>
           </div>
         </div>
+
+        {/* Upload Local */}
+        {uploadType === 'local' && (
+          <div className="card">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Arquivo de Vídeo</h2>
+            
+            <div
+              className={`drag-area ${dragOver ? 'drag-over' : ''}`}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
+              onDrop={handleDrop}
+            >
+              {file ? (
+                <div className="text-center">
+                  <div className="text-4xl mb-2">🎥</div>
+                  <p className="text-lg font-medium text-gray-900">{file.name}</p>
+                  <p className="text-sm text-gray-500">
+                    {formatFileSize(file.size)} • {file.type}
+                  </p>
+                  <button
+                    type="button"
+                    onClick={() => setFile(null)}
+                    className="mt-2 text-red-600 hover:text-red-800 text-sm font-medium"
+                  >
+                    Remover arquivo
+                  </button>
+                </div>
+              ) : (
+                <div className="text-center">
+                  <div className="text-4xl mb-4">📤</div>
+                  <p className="text-lg font-medium text-gray-900 mb-2">
+                    Arraste e solte seu vídeo aqui
+                  </p>
+                  <p className="text-gray-500 mb-4">ou</p>
+                  <label className="btn-primary cursor-pointer">
+                    Selecionar Arquivo
+                    <input
+                      type="file"
+                      accept="video/*"
+                      onChange={handleFileChange}
+                      className="hidden"
+                    />
+                  </label>
+                  <p className="text-xs text-gray-500 mt-2">
+                    Formatos suportados: MP4, AVI, MOV, WMV (máx. 500MB)
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* URL do YouTube */}
+        {uploadType === 'youtube' && (
+          <div className="card">
+            <h2 className="text-lg font-semibold text-gray-900 mb-4">Vídeo do YouTube</h2>
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  URL do YouTube *
+                </label>
+                <input
+                  type="url"
+                  name="url_youtube"
+                  value={formData.url_youtube}
+                  onChange={handleInputChange}
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  className="input-field"
+                  required
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  Cole aqui o link do vídeo do YouTube
+                </p>
+              </div>
+              
+              {formData.url_youtube && isValidYouTubeUrl(formData.url_youtube) && (
+                <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                  <div className="flex items-center">
+                    <div className="text-green-600 mr-2">✅</div>
+                    <div className="text-sm text-green-800">URL válida do YouTube</div>
+                  </div>
+                </div>
+              )}
+              
+              {formData.url_youtube && !isValidYouTubeUrl(formData.url_youtube) && (
+                <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                  <div className="flex items-center">
+                    <div className="text-red-600 mr-2">❌</div>
+                    <div className="text-sm text-red-800">URL inválida. Use o formato: https://www.youtube.com/watch?v=...</div>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Video Information */}
         <div className="card">
@@ -304,19 +431,30 @@ const VideoUpload = () => {
           <button
             type="submit"
             className="btn-primary"
-            disabled={uploading || !file}
+            disabled={uploading || (uploadType === 'local' && !file) || (uploadType === 'youtube' && !formData.url_youtube)}
           >
-            {uploading ? 'Enviando...' : 'Enviar Vídeo'}
+            {uploading ? 'Processando...' : uploadType === 'youtube' ? 'Adicionar Vídeo' : 'Enviar Vídeo'}
           </button>
         </div>
       </form>
 
       {/* Tips */}
       <div className="card bg-blue-50 border-blue-200">
-        <h3 className="text-lg font-medium text-blue-900 mb-3">💡 Dicas para um bom vídeo</h3>
+        <h3 className="text-lg font-medium text-blue-900 mb-3">💡 Dicas para um bom conteúdo</h3>
         <ul className="text-sm text-blue-800 space-y-1">
           <li>• Use títulos claros e descritivos</li>
-          <li>• Prefira vídeos em formato MP4 para melhor compatibilidade</li>
+          {uploadType === 'local' ? (
+            <>
+              <li>• Prefira vídeos em formato MP4 para melhor compatibilidade</li>
+              <li>• Mantenha os arquivos abaixo de 500MB</li>
+            </>
+          ) : (
+            <>
+              <li>• Certifique-se de que o vídeo do YouTube é público</li>
+              <li>• Copie a URL completa do vídeo (com https://)</li>
+              <li>• Vídeos privados ou restritos não funcionarão</li>
+            </>
+          )}
           <li>• Mantenha os vídeos entre 2-10 minutos para melhor engajamento</li>
           <li>• Use categorias para organizar o conteúdo</li>
           <li>• A ordem de exibição determina a sequência na TV</li>
