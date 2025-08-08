@@ -1,5 +1,11 @@
 # 📺 TV Saúde Guarapuava
 
+![Versão](https://img.shields.io/badge/versão-1.0.0-blue)
+![Status](https://img.shields.io/badge/status-funcional-success)
+![Node.js](https://img.shields.io/badge/node.js-6DA55F?&logo=node.js&logoColor=white)
+![React](https://img.shields.io/badge/react-%2320232a.svg?&logo=react&logoColor=%2361DAFB)
+![TailwindCSS](https://img.shields.io/badge/tailwindcss-%2338B2AC.svg?&logo=tailwind-css&logoColor=white)
+
 Sistema de TV digital para exibição de vídeos educativos nos postos de saúde de Guarapuava - PR.
 
 ## 🎯 Sobre o Sistema
@@ -44,7 +50,24 @@ cd dashboard-admin
 npm install
 ```
 
-### 2. Iniciar os Serviços
+### 2. Instalação Automática (Recomendada)
+
+O sistema inclui scripts para instalação fácil:
+
+```bash
+# Execute o script de instalação (instala todos os componentes de uma vez)
+./install-dependencies.bat
+```
+
+### 3. Iniciar os Serviços
+
+**Opção 1: Usando o script de inicialização**
+```bash
+# Inicia todos os serviços em terminais separados
+./start-system.bat
+```
+
+**Opção 2: Iniciando manualmente**
 
 **Terminal 1 - Backend (API):**
 ```bash
@@ -204,8 +227,32 @@ Para suporte técnico:
 
 Sistema desenvolvido para uso interno da Secretaria de Saúde de Guarapuava - PR.
 
+## 🖼️ Screenshots
+
+<details>
+<summary><b>Clique para ver screenshots do sistema</b></summary>
+
+### Interface da TV
+![Interface da TV](https://via.placeholder.com/800x450.png?text=TV+Interface)
+
+### Dashboard Administrativo
+![Dashboard Admin](https://via.placeholder.com/800x450.png?text=Dashboard+Admin)
+
+### Página de Upload
+![Página de Upload](https://via.placeholder.com/800x450.png?text=Upload+Page)
+
+</details>
+
+## 🛠️ Scripts Úteis
+
+O sistema inclui scripts para facilitar a instalação e execução:
+
+- **`install-dependencies.bat`**: Instala todas as dependências dos três componentes
+- **`start-system.bat`**: Inicia todos os serviços de uma vez em terminais separados
+
 ---
 
 **Versão:** 1.0.0  
 **Desenvolvido para:** Postos de Saúde de Guarapuava  
-**Data:** 2025
+**Data:** 2025  
+**Repositório:** [github.com/elneves81/tv-saude](https://github.com/elneves81/tv-saude)
