@@ -30,4 +30,16 @@ export const getUploadsUrl = (filename) => {
   return `http://${hostname}:3001/uploads/${filename}`;
 };
 
+// Função para obter URL de imagens do slideshow
+export const getImagesUrl = (filename) => {
+  // SOLUÇÃO PARA FIREWALL: Sempre usar IP da rede
+  const hostname = window.location.hostname;
+  
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    // IP da rede detectado: 10.0.50.79
+    return `http://10.0.50.79:3001/images/${filename}`;
+  }
+  return `http://${hostname}:3001/images/${filename}`;
+};
+
 export default API_BASE_URL;

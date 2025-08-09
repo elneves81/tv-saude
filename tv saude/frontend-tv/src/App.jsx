@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import YouTube from 'react-youtube';
-import { API_BASE_URL, getUploadsUrl } from './config/api';
+import { API_BASE_URL, getUploadsUrl, getImagesUrl } from './config/api';
 import LogoDitis from './components/LogoDitis';
 
 function App() {
@@ -437,22 +437,84 @@ function App() {
   // Tela de erro
   if (error || videos.length === 0) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-red-900 to-orange-900">
-        <div className="max-w-md p-8 mx-auto text-center">
-          <div className="mb-4 text-6xl">📺</div>
-          <h2 className="mb-4 text-3xl font-bold text-white">TV Saúde Guarapuava</h2>
-          <p className="mb-6 text-red-200">
-            {error || 'Nenhum vídeo disponível no momento'}
-          </p>
-          <div className="text-white">
-            <div className="text-4xl font-bold">{time}</div>
-            <div className="text-lg capitalize">{date}</div>
+      <>
+        <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-red-900 to-orange-900">
+          <div className="max-w-md p-8 mx-auto text-center">
+            <div className="mb-4 text-6xl">📺</div>
+            <h2 className="mb-4 text-3xl font-bold text-white">TV Saúde Guarapuava</h2>
+            <p className="mb-6 text-red-200">
+              {error || 'Nenhum vídeo disponível no momento'}
+            </p>
+            <div className="text-white">
+              <div className="text-4xl font-bold">{time}</div>
+              <div className="text-lg capitalize">{date}</div>
+            </div>
+            <p className="mt-4 text-sm text-red-300">
+              Verifique a conexão ou contate o administrador
+            </p>
           </div>
-          <p className="mt-4 text-sm text-red-300">
-            Verifique a conexão ou contate o administrador
-          </p>
         </div>
-      </div>
+
+        {/* Slideshow de Imagens */}
+        {showImageSlideshow && images.length > 0 && (
+          <div className="fixed overflow-hidden border rounded-lg shadow-2xl bottom-4 right-4 w-80 h-60 bg-black/90 border-white/20">
+            <div className="relative w-full h-full">
+              {/* Imagem Atual */}
+              <div className="w-full h-full">
+                <img
+                  src={getImagesUrl(images[currentImageIndex]?.arquivo)}
+                  alt={images[currentImageIndex]?.titulo}
+                  className="object-cover w-full h-full transition-opacity duration-1000"
+                  onError={(e) => {
+                    console.error('Erro ao carregar imagem:', e.target.src);
+                    e.target.style.display = 'none';
+                  }}
+                />
+              </div>
+
+              {/* Overlay com informações */}
+              <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
+                <div className="text-white">
+                  <div className="mb-1 text-sm font-semibold truncate">
+                    {images[currentImageIndex]?.titulo}
+                  </div>
+                  {images[currentImageIndex]?.descricao && (
+                    <div className="text-xs text-white/80 line-clamp-2">
+                      {images[currentImageIndex]?.descricao}
+                    </div>
+                  )}
+                </div>
+                
+                {/* Indicadores de progresso */}
+                {images.length > 1 && (
+                  <div className="flex items-center justify-between mt-2">
+                    <div className="flex space-x-1">
+                      {images.map((_, index) => (
+                        <div
+                          key={index}
+                          className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                            index === currentImageIndex ? 'bg-white' : 'bg-white/40'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <span className="text-xs text-white/70">
+                      {currentImageIndex + 1}/{images.length}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Ícone de galeria */}
+              <div className="absolute p-1 rounded-full top-2 right-2 bg-black/50">
+                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                </svg>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 
@@ -664,24 +726,25 @@ function App() {
 
       {/* Slideshow de Imagens */}
       {showImageSlideshow && images.length > 0 && (
-        <div className="fixed bottom-4 right-4 w-80 h-60 bg-black/90 rounded-lg overflow-hidden shadow-2xl border border-white/20">
+        <div className="fixed overflow-hidden border rounded-lg shadow-2xl bottom-4 right-4 w-80 h-60 bg-black/90 border-white/20">
           <div className="relative w-full h-full">
             {/* Imagem Atual */}
             <div className="w-full h-full">
               <img
-                src={`${API_BASE_URL}/images/${images[currentImageIndex]?.arquivo}`}
+                src={getImagesUrl(images[currentImageIndex]?.arquivo)}
                 alt={images[currentImageIndex]?.titulo}
-                className="w-full h-full object-cover transition-opacity duration-1000"
+                className="object-cover w-full h-full transition-opacity duration-1000"
                 onError={(e) => {
+                  console.error('Erro ao carregar imagem:', e.target.src);
                   e.target.style.display = 'none';
                 }}
               />
             </div>
 
             {/* Overlay com informações */}
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+            <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
               <div className="text-white">
-                <div className="text-sm font-semibold mb-1 truncate">
+                <div className="mb-1 text-sm font-semibold truncate">
                   {images[currentImageIndex]?.titulo}
                 </div>
                 {images[currentImageIndex]?.descricao && (
@@ -712,7 +775,7 @@ function App() {
             </div>
 
             {/* Ícone de galeria */}
-            <div className="absolute top-2 right-2 bg-black/50 rounded-full p-1">
+            <div className="absolute p-1 rounded-full top-2 right-2 bg-black/50">
               <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
