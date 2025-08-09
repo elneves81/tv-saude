@@ -32,8 +32,9 @@ app.use(session({
   }
 }));
 
-// Servir arquivos estáticos (vídeos)
+// Servir arquivos estáticos (vídeos e áudio)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
+app.use('/audio', express.static(path.join(__dirname, '../audio')));
 
 // Configuração do banco de dados SQLite
 const dbPath = path.join(__dirname, '../database/tv_saude.db');
@@ -949,8 +950,11 @@ app.post('/api/controle', authenticateToken, (req, res) => {
 
 // Obter último comando (público - para a TV consultar)
 app.get('/api/controle/ultimo', (req, res) => {
+  // Buscar último comando que não seja problemático
   db.get(
-    'SELECT * FROM controle_tv ORDER BY timestamp DESC LIMIT 1',
+    `SELECT * FROM controle_tv 
+     WHERE NOT (comando = 'play' AND (parametros IS NULL OR parametros = 'null'))
+     ORDER BY timestamp DESC LIMIT 1`,
     (err, row) => {
       if (err) {
         res.status(500).json({ error: err.message });

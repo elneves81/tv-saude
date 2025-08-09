@@ -1,7 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import axios from 'axios';
 import YouTube from 'react-youtube';
 import { API_BASE_URL, getUploadsUrl } from './config/api';
+import LogoDitis from './components/LogoDitis';
+import AudioVisualizer from './components/AudioVisualizer';
+import audioManager from './utils/audioManager';
 
 function App() {
   const [videos, setVideos] = useState([]);
@@ -14,8 +17,20 @@ function App() {
   const [lastCommandId, setLastCommandId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
+  const [isTransitioning, setIsTransitioning] = useState(false);
+  const [showSubtitles, setShowSubtitles] = useState(true);
+  const [backgroundMusic, setBackgroundMusic] = useState(true);
+  const [audioLevel, setAudioLevel] = useState(0);
+  const [isMuted, setIsMuted] = useState(false);
+  const [showAudioVisualizer, setShowAudioVisualizer] = useState(true);
+  const [visualizerType, setVisualizerType] = useState('bars');
   const videoRef = useRef(null);
   const youtubeRef = useRef(null);
+  const backgroundAudioRef = useRef(null);
+  
+  // Refs para controlar intervalos e evitar conflitos
+  const intervalsRef = useRef({});
+  const lastDataRef = useRef({ videos: [], messages: [], playlist: null });
 
   // Atualizar relógio a cada segundo
   useEffect(() => {
@@ -64,12 +79,18 @@ function App() {
       const response = await axios.get(`${API_BASE_URL}/controle/ultimo`);
       const command = response.data;
       
-      if (command && command.id !== lastCommandId) {
+      if (command && command.id !== lastCommandId && command.comando) {
         setLastCommandId(command.id);
-        executeCommand(command.comando, command.parametros);
+        // Evitar executar comandos problemáticos
+        if (command.comando !== 'play' || command.parametros !== null) {
+          executeCommand(command.comando, command.parametros);
+        }
       }
     } catch (err) {
-      console.error('Erro ao verificar comandos:', err);
+      // Reduzir logs de erro para comandos
+      if (err.response?.status !== 404) {
+        console.error('Erro ao verificar comandos:', err);
+      }
     }
   };
 
@@ -80,7 +101,10 @@ function App() {
 
   // Executar comando do controle remoto
   const executeCommand = (comando, parametros) => {
-    console.log('Executando comando:', comando, parametros);
+    // Só fazer log se não for um comando repetitivo com null
+    if (comando !== 'play' || parametros !== null) {
+      console.log('Executando comando:', comando, parametros);
+    }
     
     switch (comando) {
       case 'play':
@@ -521,7 +545,7 @@ function App() {
       )}
 
       {/* CSS para animação de marquee */}
-      <style jsx>{`
+      <style>{`
         @keyframes marquee {
           0% {
             transform: translateX(100%);
