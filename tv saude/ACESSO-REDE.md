@@ -19,7 +19,7 @@ O sistema TV Saúde foi configurado para permitir acesso de qualquer dispositivo
 ### 2. Aplicações Frontend
 - **Vite configurado** com `host: true` (já estava configurado)
 - **Dashboard Admin** acessível pela rede na porta 3002
-- **Interface da TV** acessível pela rede na porta 3000
+- **Interface da TV** acessível pela rede na porta 3003
 
 ### 3. Script de Inicialização
 - **Detecção automática** do IP da máquina
@@ -44,7 +44,7 @@ http://[IP_DA_MAQUINA]:3002
 
 **Interface da TV:**
 ```
-http://[IP_DA_MAQUINA]:3000
+http://[IP_DA_MAQUINA]:3003
 ```
 
 **API Backend:**
@@ -60,7 +60,7 @@ http://[IP_DA_MAQUINA]:3001/uploads
 ### 3. Exemplo Prático
 Se o IP da máquina for `192.168.1.100`:
 - Dashboard: `http://192.168.1.100:3002`
-- TV: `http://192.168.1.100:3000`
+- TV: `http://192.168.1.100:3003`
 - API: `http://192.168.1.100:3001/api`
 
 ## 🔒 Configurações de Firewall
@@ -78,16 +78,16 @@ Se não conseguir acessar de outros dispositivos, configure o firewall:
    - Clique em "Regras de Entrada" → "Nova Regra"
    - Tipo: Porta
    - Protocolo: TCP
-   - Portas: 3000, 3001, 3002
+   - Portas: 3001, 3002, 3003
    - Ação: Permitir conexão
    - Perfil: Todos
    - Nome: "TV Saude - Acesso Rede"
 
 ### Comando Rápido (Execute como Administrador)
 ```cmd
-netsh advfirewall firewall add rule name="TV Saude Port 3000" dir=in action=allow protocol=TCP localport=3000
 netsh advfirewall firewall add rule name="TV Saude Port 3001" dir=in action=allow protocol=TCP localport=3001
 netsh advfirewall firewall add rule name="TV Saude Port 3002" dir=in action=allow protocol=TCP localport=3002
+netsh advfirewall firewall add rule name="TV Saude Port 3003" dir=in action=allow protocol=TCP localport=3003
 ```
 
 ## 📱 Funcionalidades Disponíveis pela Rede
@@ -99,7 +99,7 @@ netsh advfirewall firewall add rule name="TV Saude Port 3002" dir=in action=allo
 - ✅ Controle remoto das TVs
 - ✅ Configurações do sistema
 
-### Interface da TV (Porta 3000)
+### Interface da TV (Porta 3003)
 - ✅ Reprodução de vídeos
 - ✅ Recebimento de comandos remotos
 - ✅ Exibição de playlists ativas

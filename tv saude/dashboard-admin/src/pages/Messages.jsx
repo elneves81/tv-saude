@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { useNotification } from '../contexts/NotificationContext';
-import { API_BASE_URL } from '../config/api';
+import api from '../config/api';
 
 const Messages = () => {
   const { showSuccess, showError } = useNotification();
@@ -24,7 +23,7 @@ const Messages = () => {
   const fetchMessages = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${API_BASE_URL}/mensagens/todas`);
+      const response = await api.get('/mensagens/admin');
       setMessages(response.data || []);
     } catch (error) {
       console.error('Erro ao buscar mensagens:', error);
@@ -44,18 +43,21 @@ const Messages = () => {
 
     try {
       const data = {
-        ...formData,
-        data_fim: formData.data_fim || null
+        titulo: formData.titulo,
+        conteudo: formData.conteudo,
+        tipo: formData.tipo,
+        prioridade: formData.prioridade,
+        data_expiracao: formData.data_fim || null
       };
 
       if (editingMessage) {
-        await axios.put(`${API_BASE_URL}/mensagens/${editingMessage.id}`, {
+        await api.put(`/mensagens/${editingMessage.id}`, {
           ...data,
-          ativa: editingMessage.ativa
+          ativo: editingMessage.ativo
         });
         showSuccess('Mensagem atualizada com sucesso!');
       } else {
-        await axios.post(`${API_BASE_URL}/mensagens`, data);
+        await api.post('/mensagens', data);
         showSuccess('Mensagem criada com sucesso!');
       }
 
@@ -85,7 +87,7 @@ const Messages = () => {
     }
 
     try {
-      await axios.delete(`${API_BASE_URL}/mensagens/${id}`);
+      await api.delete(`/mensagens/${id}`);
       showSuccess('Mensagem deletada com sucesso!');
       fetchMessages();
     } catch (error) {
@@ -96,7 +98,7 @@ const Messages = () => {
 
   const handleToggle = async (id) => {
     try {
-      await axios.patch(`${API_BASE_URL}/mensagens/${id}/toggle`);
+      await api.patch(`/mensagens/${id}/toggle`);
       showSuccess('Status da mensagem alterado!');
       fetchMessages();
     } catch (error) {
@@ -174,8 +176,8 @@ const Messages = () => {
 
       {/* Form Modal */}
       {showForm && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md mx-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-50">
+          <div className="w-full max-w-md p-6 mx-4 bg-white rounded-lg">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-semibold">
                 {editingMessage ? 'Editar Mensagem' : 'Nova Mensagem'}
@@ -190,7 +192,7 @@ const Messages = () => {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block mb-1 text-sm font-medium text-gray-700">
                   Título *
                 </label>
                 <input
@@ -204,7 +206,7 @@ const Messages = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block mb-1 text-sm font-medium text-gray-700">
                   Conteúdo *
                 </label>
                 <textarea
@@ -219,7 +221,7 @@ const Messages = () => {
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block mb-1 text-sm font-medium text-gray-700">
                     Tipo
                   </label>
                   <select
@@ -236,7 +238,7 @@ const Messages = () => {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-1">
+                  <label className="block mb-1 text-sm font-medium text-gray-700">
                     Prioridade
                   </label>
                   <select
@@ -253,7 +255,7 @@ const Messages = () => {
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">
+                <label className="block mb-1 text-sm font-medium text-gray-700">
                   Data de Expiração (opcional)
                 </label>
                 <input
@@ -262,15 +264,15 @@ const Messages = () => {
                   onChange={(e) => setFormData({ ...formData, data_fim: e.target.value })}
                   className="input"
                 />
-                <p className="text-xs text-gray-500 mt-1">
+                <p className="mt-1 text-xs text-gray-500">
                   Deixe em branco para mensagem permanente
                 </p>
               </div>
 
-              <div className="flex space-x-3 pt-4">
+              <div className="flex pt-4 space-x-3">
                 <button
                   type="submit"
-                  className="btn btn-primary flex-1"
+                  className="flex-1 btn btn-primary"
                 >
                   {editingMessage ? 'Atualizar' : 'Criar'} Mensagem
                 </button>
@@ -296,8 +298,8 @@ const Messages = () => {
         </div>
 
         {messages.length === 0 ? (
-          <div className="text-center py-8 text-gray-500">
-            <div className="text-4xl mb-2">📢</div>
+          <div className="py-8 text-center text-gray-500">
+            <div className="mb-2 text-4xl">📢</div>
             <p>Nenhuma mensagem criada</p>
             <p className="text-sm">Crie a primeira mensagem para os dispositivos</p>
           </div>
@@ -314,7 +316,7 @@ const Messages = () => {
               >
                 <div className="flex items-start justify-between">
                   <div className="flex-1">
-                    <div className="flex items-center space-x-2 mb-2">
+                    <div className="flex items-center mb-2 space-x-2">
                       <span className="text-lg">{getTypeIcon(message.tipo)}</span>
                       <h3 className="font-semibold text-gray-900">
                         {message.titulo}
@@ -322,12 +324,12 @@ const Messages = () => {
                       <span className={`px-2 py-1 rounded-full text-xs font-medium ${getTypeColor(message.tipo)}`}>
                         {message.tipo}
                       </span>
-                      <span className="px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                      <span className="px-2 py-1 text-xs font-medium text-gray-800 bg-gray-100 rounded-full">
                         Prioridade {message.prioridade}
                       </span>
                     </div>
                     
-                    <p className="text-gray-700 mb-2">{message.conteudo}</p>
+                    <p className="mb-2 text-gray-700">{message.conteudo}</p>
                     
                     <div className="flex items-center space-x-4 text-sm text-gray-500">
                       <span>
@@ -341,7 +343,7 @@ const Messages = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center space-x-2 ml-4">
+                  <div className="flex items-center ml-4 space-x-2">
                     <button
                       onClick={() => handleToggle(message.id)}
                       className={`px-3 py-1 rounded-full text-sm font-medium ${
@@ -355,7 +357,7 @@ const Messages = () => {
                     
                     <button
                       onClick={() => handleEdit(message)}
-                      className="p-2 text-blue-600 hover:bg-blue-100 rounded"
+                      className="p-2 text-blue-600 rounded hover:bg-blue-100"
                       title="Editar"
                     >
                       ✏️
@@ -363,7 +365,7 @@ const Messages = () => {
                     
                     <button
                       onClick={() => handleDelete(message.id)}
-                      className="p-2 text-red-600 hover:bg-red-100 rounded"
+                      className="p-2 text-red-600 rounded hover:bg-red-100"
                       title="Deletar"
                     >
                       🗑️
@@ -377,12 +379,12 @@ const Messages = () => {
       </div>
 
       {/* Info Card */}
-      <div className="card bg-blue-50 border-blue-200">
+      <div className="border-blue-200 card bg-blue-50">
         <div className="flex items-start space-x-3">
           <div className="text-2xl">💡</div>
           <div>
-            <h3 className="font-semibold text-blue-900 mb-2">Como funciona</h3>
-            <ul className="text-sm text-blue-800 space-y-1">
+            <h3 className="mb-2 font-semibold text-blue-900">Como funciona</h3>
+            <ul className="space-y-1 text-sm text-blue-800">
               <li>• Mensagens ativas aparecem em todas as TVs da rede</li>
               <li>• Prioridade alta aparece primeiro</li>
               <li>• Mensagens com data de expiração são removidas automaticamente</li>

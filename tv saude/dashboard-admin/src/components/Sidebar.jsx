@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import LogoDitis from './LogoDitis';
 
 const Sidebar = ({ isOpen, onClose }) => {
   const location = useLocation();
@@ -36,6 +37,11 @@ const Sidebar = ({ isOpen, onClose }) => {
       path: '/messages',
       name: 'Mensagens',
       icon: '📢'
+    },
+    {
+      path: '/images',
+      name: 'Imagens',
+      icon: '📸'
     },
     ...(isAdmin() ? [{
       path: '/users',
@@ -131,6 +137,11 @@ const Sidebar = ({ isOpen, onClose }) => {
               <span className="mr-2">🚪</span>
               Sair
             </button>
+          </div>
+          
+          {/* Logo DITIS */}
+          <div className="flex justify-center px-4 pb-2">
+            <LogoDitis size="small" className="opacity-70" />
           </div>
           
           {/* Footer info */}

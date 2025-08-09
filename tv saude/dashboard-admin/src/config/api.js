@@ -2,13 +2,20 @@ import axios from 'axios';
 
 // Configuração dinâmica da API baseada no ambiente
 const getApiBaseUrl = () => {
-  // Se estamos em desenvolvimento local
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return 'http://localhost:3001/api';
+  // SOLUÇÃO PARA FIREWALL: Sempre usar IP da rede em vez de localhost
+  // para evitar bloqueios do firewall corporativo
+  
+  // Detectar IP da rede automaticamente
+  const hostname = window.location.hostname;
+  
+  // Se estamos em localhost, forçar uso do IP da rede
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    // IP da rede detectado: 10.0.50.79
+    return 'http://10.0.50.79:3001/api';
   }
   
-  // Se estamos acessando via IP da rede, usar o mesmo IP para a API
-  return `http://${window.location.hostname}:3001/api`;
+  // Se já estamos acessando via IP da rede, usar o mesmo IP para a API
+  return `http://${hostname}:3001/api`;
 };
 
 export const API_BASE_URL = getApiBaseUrl();
@@ -54,10 +61,14 @@ api.interceptors.response.use(
 
 // Função para obter URL de uploads
 export const getUploadsUrl = (filename) => {
-  if (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1') {
-    return `http://localhost:3001/uploads/${filename}`;
+  // SOLUÇÃO PARA FIREWALL: Sempre usar IP da rede
+  const hostname = window.location.hostname;
+  
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    // IP da rede detectado: 10.0.50.79
+    return `http://10.0.50.79:3001/uploads/${filename}`;
   }
-  return `http://${window.location.hostname}:3001/uploads/${filename}`;
+  return `http://${hostname}:3001/uploads/${filename}`;
 };
 
 export default api;

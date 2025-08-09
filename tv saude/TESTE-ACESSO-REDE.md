@@ -3,7 +3,7 @@
 ## 📋 Status dos Serviços
 
 ✅ **Backend API** rodando em: `0.0.0.0:3001`  
-✅ **Interface da TV** rodando em: `0.0.0.0:3000`  
+✅ **Interface da TV** rodando em: `0.0.0.0:3003`  
 ✅ **Dashboard Admin** rodando em: `0.0.0.0:3002`  
 
 ## 🌐 IPs Detectados para Acesso de Rede
@@ -19,12 +19,12 @@ Baseado nos testes realizados, os seguintes IPs estão disponíveis:
 
 ### Usando o IP Principal (10.0.50.79):
 - **Dashboard Admin**: http://10.0.50.79:3002
-- **Interface da TV**: http://10.0.50.79:3000
+- **Interface da TV**: http://10.0.50.79:3003
 - **API Backend**: http://10.0.50.79:3001/api/test
 
 ### Se o IP principal não funcionar, teste com outros IPs:
 - **Dashboard Admin**: http://192.168.56.1:3002
-- **Interface da TV**: http://192.168.56.1:3000
+- **Interface da TV**: http://192.168.56.1:3003
 - **API Backend**: http://192.168.56.1:3001/api/test
 
 ## 📱 Como Testar de Outro Dispositivo

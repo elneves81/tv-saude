@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import LogoDitis from '../components/LogoDitis';
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -48,8 +49,8 @@ const Login = () => {
         <div className="p-8 bg-white rounded-lg shadow-2xl">
           {/* Header */}
           <div className="mb-8 text-center">
-            <div className="flex items-center justify-center w-16 h-16 mx-auto mb-4 bg-blue-600 rounded-full">
-              <span className="text-2xl">🏥</span>
+            <div className="flex items-center justify-center mx-auto mb-4">
+              <LogoDitis size="medium" />
             </div>
             <h2 className="text-3xl font-bold text-gray-900">TV Saúde</h2>
             <p className="mt-2 text-gray-600">Dashboard Administrativo</p>

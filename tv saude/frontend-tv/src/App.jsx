@@ -15,6 +15,9 @@ function App() {
   const [lastCommandId, setLastCommandId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
+  const [images, setImages] = useState([]);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
+  const [showImageSlideshow, setShowImageSlideshow] = useState(false);
   const videoRef = useRef(null);
   const youtubeRef = useRef(null);
 
@@ -59,6 +62,25 @@ function App() {
     }
   };
 
+  // Buscar imagens da API
+  const fetchImages = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/imagens`);
+      if (response.data && response.data.length > 0) {
+        setImages(response.data);
+        if (response.data.length > 0 && !showImageSlideshow) {
+          setShowImageSlideshow(true);
+        }
+      } else {
+        setImages([]);
+        setShowImageSlideshow(false);
+      }
+    } catch (err) {
+      console.error('Erro ao buscar imagens:', err);
+      setImages([]);
+    }
+  };
+
   // Verificar comandos do controle remoto
   const checkRemoteCommands = async () => {
     try {
@@ -90,9 +112,15 @@ function App() {
 
   // Executar comando do controle remoto
   const executeCommand = (comando, parametros) => {
-    // Só fazer log se não for um comando repetitivo com null
-    const comandosProblematicos = ['play', 'background_music_off', 'background_music_on'];
+    // PROTEÇÃO ANTI-LOOP: Bloquear comandos problemáticos que causam loops infinitos
+    const comandosProblematicos = ['play', 'background_music_off', 'background_music_on', 'refresh'];
     const isComandoProblematico = comandosProblematicos.includes(comando) && parametros === null;
+    
+    // PROTEÇÃO ESPECIAL: Nunca executar comando 'refresh' - causa loop infinito
+    if (comando === 'refresh') {
+      console.warn('🚨 BLOQUEADO: Comando "refresh" ignorado para evitar loop infinito');
+      return;
+    }
     
     if (!isComandoProblematico) {
       console.log('Executando comando:', comando, parametros);
@@ -138,7 +166,8 @@ function App() {
         break;
         
       case 'refresh':
-        window.location.reload();
+        // NUNCA EXECUTAR - já bloqueado acima
+        console.warn('🚨 Comando refresh bloqueado permanentemente');
         break;
         
       case 'emergency_stop':
@@ -167,6 +196,10 @@ function App() {
           videoRef.current.muted = !videoRef.current.muted;
         }
         break;
+        
+      default:
+        console.warn('⚠️ Comando desconhecido:', comando);
+        break;
     }
   };
 
@@ -184,6 +217,7 @@ function App() {
   useEffect(() => {
     fetchVideos(true); // Primeira carga com loading
     fetchMessages();
+    fetchImages(); // Buscar imagens também
     
     // Recarregar vídeos a cada 10 segundos para atualização mais rápida (sem loading)
     const videoInterval = setInterval(() => fetchVideos(false), 10 * 1000);
@@ -194,10 +228,14 @@ function App() {
     // Buscar mensagens a cada 10 segundos
     const messagesInterval = setInterval(fetchMessages, 10 * 1000);
     
+    // Buscar imagens a cada 30 segundos
+    const imagesInterval = setInterval(fetchImages, 30 * 1000);
+    
     return () => {
       clearInterval(videoInterval);
       clearInterval(commandInterval);
       clearInterval(messagesInterval);
+      clearInterval(imagesInterval);
     };
   }, []);
 
@@ -213,6 +251,22 @@ function App() {
       return () => clearInterval(messageRotation);
     }
   }, [messages.length]);
+
+  // Rotacionar imagens baseado na duração configurada
+  useEffect(() => {
+    if (images.length > 1 && showImageSlideshow) {
+      const currentImage = images[currentImageIndex];
+      const duration = currentImage?.duracao || 5000;
+      
+      const imageRotation = setInterval(() => {
+        setCurrentImageIndex((prevIndex) => 
+          prevIndex === images.length - 1 ? 0 : prevIndex + 1
+        );
+      }, duration);
+      
+      return () => clearInterval(imageRotation);
+    }
+  }, [images.length, currentImageIndex, showImageSlideshow]);
 
   // Executar checkRemoteCommands apenas uma vez na inicialização
   useEffect(() => {
@@ -245,6 +299,42 @@ function App() {
 
   // Quando o vídeo carregar, reproduzir automaticamente
   const handleVideoLoad = () => {
+    if (isPlaying && videoRef.current) {
+      videoRef.current.play().catch(console.error);
+    }
+  };
+
+  // Contador de erros para evitar loop infinito
+  const [videoErrorCount, setVideoErrorCount] = useState(0);
+  const maxVideoErrors = 3; // Máximo de erros antes de parar
+
+  // Função para lidar com erros de vídeo com proteção anti-loop
+  const handleVideoError = (e) => {
+    console.error('Erro no vídeo:', e);
+    
+    // Incrementar contador de erros
+    setVideoErrorCount(prev => {
+      const newCount = prev + 1;
+      
+      // Se atingiu o máximo de erros, parar de tentar
+      if (newCount >= maxVideoErrors) {
+        console.warn('🚨 Muitos erros de vídeo consecutivos. Parando para evitar loop infinito.');
+        setError('Erro ao reproduzir vídeos. Verifique os arquivos de mídia.');
+        return newCount;
+      }
+      
+      // Caso contrário, tentar próximo vídeo após um delay
+      setTimeout(() => {
+        nextVideo();
+      }, 1000); // Delay de 1 segundo para evitar loop muito rápido
+      
+      return newCount;
+    });
+  };
+
+  // Resetar contador de erros quando vídeo carrega com sucesso
+  const handleVideoLoadSuccess = () => {
+    setVideoErrorCount(0); // Reset contador quando vídeo carrega
     if (isPlaying && videoRef.current) {
       videoRef.current.play().catch(console.error);
     }
@@ -408,11 +498,8 @@ function App() {
           autoPlay={isPlaying}
           muted
           onEnded={handleVideoEnd}
-          onLoadedData={handleVideoLoad}
-          onError={(e) => {
-            console.error('Erro no vídeo:', e);
-            nextVideo();
-          }}
+          onLoadedData={handleVideoLoadSuccess}
+          onError={handleVideoError}
         >
           <source 
             src={getUploadsUrl(currentVideo.arquivo)} 
@@ -574,6 +661,65 @@ function App() {
           </div>
         )}
       </div>
+
+      {/* Slideshow de Imagens */}
+      {showImageSlideshow && images.length > 0 && (
+        <div className="fixed bottom-4 right-4 w-80 h-60 bg-black/90 rounded-lg overflow-hidden shadow-2xl border border-white/20">
+          <div className="relative w-full h-full">
+            {/* Imagem Atual */}
+            <div className="w-full h-full">
+              <img
+                src={`${API_BASE_URL}/images/${images[currentImageIndex]?.arquivo}`}
+                alt={images[currentImageIndex]?.titulo}
+                className="w-full h-full object-cover transition-opacity duration-1000"
+                onError={(e) => {
+                  e.target.style.display = 'none';
+                }}
+              />
+            </div>
+
+            {/* Overlay com informações */}
+            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-3">
+              <div className="text-white">
+                <div className="text-sm font-semibold mb-1 truncate">
+                  {images[currentImageIndex]?.titulo}
+                </div>
+                {images[currentImageIndex]?.descricao && (
+                  <div className="text-xs text-white/80 line-clamp-2">
+                    {images[currentImageIndex]?.descricao}
+                  </div>
+                )}
+              </div>
+              
+              {/* Indicadores de progresso */}
+              {images.length > 1 && (
+                <div className="flex items-center justify-between mt-2">
+                  <div className="flex space-x-1">
+                    {images.map((_, index) => (
+                      <div
+                        key={index}
+                        className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
+                          index === currentImageIndex ? 'bg-white' : 'bg-white/40'
+                        }`}
+                      />
+                    ))}
+                  </div>
+                  <span className="text-xs text-white/70">
+                    {currentImageIndex + 1}/{images.length}
+                  </span>
+                </div>
+              )}
+            </div>
+
+            {/* Ícone de galeria */}
+            <div className="absolute top-2 right-2 bg-black/50 rounded-full p-1">
+              <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

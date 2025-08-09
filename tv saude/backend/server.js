@@ -32,9 +32,10 @@ app.use(session({
   }
 }));
 
-// Servir arquivos estáticos (vídeos e áudio)
+// Servir arquivos estáticos (vídeos, áudio e imagens)
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use('/audio', express.static(path.join(__dirname, '../audio')));
+app.use('/images', express.static(path.join(__dirname, '../images')));
 
 // Configuração do banco de dados SQLite
 const dbPath = path.join(__dirname, '../database/tv_saude.db');
@@ -143,6 +144,23 @@ db.serialize(() => {
       prioridade INTEGER DEFAULT 1 CHECK(prioridade BETWEEN 1 AND 4),
       ativo BOOLEAN DEFAULT 1,
       data_expiracao DATETIME,
+      data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+      data_atualizacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+      criado_por INTEGER,
+      FOREIGN KEY (criado_por) REFERENCES usuarios (id)
+    )
+  `);
+
+  // Tabela de imagens para slideshow
+  db.run(`
+    CREATE TABLE IF NOT EXISTS imagens_slideshow (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      titulo TEXT NOT NULL,
+      descricao TEXT,
+      arquivo TEXT NOT NULL,
+      ativo BOOLEAN DEFAULT 1,
+      ordem INTEGER DEFAULT 0,
+      duracao INTEGER DEFAULT 5000,
       data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP,
       data_atualizacao DATETIME DEFAULT CURRENT_TIMESTAMP,
       criado_por INTEGER,
@@ -388,6 +406,36 @@ const upload = multer({
   },
   limits: {
     fileSize: 500 * 1024 * 1024 // 500MB limite
+  }
+});
+
+// Configuração do Multer para upload de imagens
+const imageStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const uploadPath = path.join(__dirname, '../images');
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+    cb(null, uploadPath);
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  }
+});
+
+const uploadImage = multer({
+  storage: imageStorage,
+  fileFilter: (req, file, cb) => {
+    // Aceitar apenas arquivos de imagem
+    if (file.mimetype.startsWith('image/')) {
+      cb(null, true);
+    } else {
+      cb(new Error('Apenas arquivos de imagem são permitidos!'), false);
+    }
+  },
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB limite para imagens
   }
 });
 
@@ -920,6 +968,125 @@ app.put('/api/playlists/:id/videos/ordem', authenticateToken, (req, res) => {
     });
 });
 
+// ===== ROTAS DE IMAGENS SLIDESHOW =====
+
+// Listar todas as imagens ativas (público - para as TVs)
+app.get('/api/imagens', (req, res) => {
+  db.all(
+    'SELECT * FROM imagens_slideshow WHERE ativo = 1 ORDER BY ordem ASC, data_criacao DESC',
+    (err, rows) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      res.json(rows);
+    }
+  );
+});
+
+// Listar todas as imagens (protegido - para admin)
+app.get('/api/admin/imagens', authenticateToken, (req, res) => {
+  db.all(
+    'SELECT * FROM imagens_slideshow ORDER BY ordem ASC, data_criacao DESC',
+    (err, rows) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      res.json(rows);
+    }
+  );
+});
+
+// Adicionar nova imagem (protegido)
+app.post('/api/admin/imagens', authenticateToken, uploadImage.single('arquivo'), (req, res) => {
+  const { titulo, descricao, duracao, ordem } = req.body;
+  
+  if (!req.file) {
+    return res.status(400).json({ error: 'Arquivo de imagem é obrigatório' });
+  }
+
+  db.run(
+    'INSERT INTO imagens_slideshow (titulo, descricao, arquivo, duracao, ordem, criado_por) VALUES (?, ?, ?, ?, ?, ?)',
+    [titulo, descricao, req.file.filename, duracao || 5000, ordem || 0, req.user.id],
+    function(err) {
+      if (err) {
+        // Remover arquivo se erro no banco
+        try {
+          fs.unlinkSync(req.file.path);
+        } catch (e) {}
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      res.json({ 
+        id: this.lastID, 
+        message: 'Imagem adicionada com sucesso',
+        arquivo: req.file.filename 
+      });
+    }
+  );
+});
+
+// Atualizar imagem (protegido)
+app.put('/api/admin/imagens/:id', authenticateToken, (req, res) => {
+  const { titulo, descricao, duracao, ordem, ativo } = req.body;
+  const imagemId = req.params.id;
+
+  db.run(
+    'UPDATE imagens_slideshow SET titulo = ?, descricao = ?, duracao = ?, ordem = ?, ativo = ?, data_atualizacao = CURRENT_TIMESTAMP WHERE id = ?',
+    [titulo, descricao, duracao, ordem, ativo, imagemId],
+    function(err) {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      if (this.changes === 0) {
+        res.status(404).json({ error: 'Imagem não encontrada' });
+        return;
+      }
+      res.json({ message: 'Imagem atualizada com sucesso' });
+    }
+  );
+});
+
+// Deletar imagem (protegido)
+app.delete('/api/admin/imagens/:id', authenticateToken, (req, res) => {
+  const imagemId = req.params.id;
+
+  // Buscar arquivo para deletar
+  db.get('SELECT arquivo FROM imagens_slideshow WHERE id = ?', [imagemId], (err, row) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    
+    if (!row) {
+      res.status(404).json({ error: 'Imagem não encontrada' });
+      return;
+    }
+
+    // Deletar registro do banco
+    db.run('DELETE FROM imagens_slideshow WHERE id = ?', [imagemId], (err) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+
+      // Deletar arquivo físico
+      try {
+        const filePath = path.join(__dirname, '../images', row.arquivo);
+        if (fs.existsSync(filePath)) {
+          fs.unlinkSync(filePath);
+        }
+      } catch (e) {
+        console.error('Erro ao deletar arquivo:', e);
+      }
+
+      res.json({ message: 'Imagem deletada com sucesso' });
+    });
+  });
+});
+
 // ===== ROTAS DE CONTROLE REMOTO =====
 
 // Enviar comando para TV (protegido)
@@ -950,13 +1117,14 @@ app.post('/api/controle', authenticateToken, (req, res) => {
 
 // Obter último comando (público - para a TV consultar)
 app.get('/api/controle/ultimo', (req, res) => {
-  // Buscar último comando que não seja problemático
+  // Buscar último comando que não seja problemático - INCLUINDO BLOQUEIO DE REFRESH
   db.get(
     `SELECT * FROM controle_tv 
      WHERE NOT (
        (comando = 'play' AND (parametros IS NULL OR parametros = 'null')) OR
        (comando = 'background_music_off' AND (parametros IS NULL OR parametros = 'null')) OR
-       (comando = 'background_music_on' AND (parametros IS NULL OR parametros = 'null'))
+       (comando = 'background_music_on' AND (parametros IS NULL OR parametros = 'null')) OR
+       (comando = 'refresh')
      )
      ORDER BY timestamp DESC LIMIT 1`,
     (err, row) => {

@@ -14,6 +14,7 @@ import PlaylistEdit from './pages/PlaylistEdit';
 import RemoteControl from './pages/RemoteControl';
 import Messages from './pages/Messages';
 import Users from './pages/Users';
+import ImageManager from './pages/ImageManager';
 import Login from './pages/Login';
 
 // Componente para proteger rotas que precisam de autenticação
@@ -63,6 +64,7 @@ const AuthenticatedApp = () => {
             <Route path="/playlists/:id/edit" element={<PlaylistEdit />} />
             <Route path="/controle" element={<RemoteControl />} />
             <Route path="/messages" element={<Messages />} />
+            <Route path="/images" element={<ImageManager />} />
             <Route path="/users" element={<Users />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>
