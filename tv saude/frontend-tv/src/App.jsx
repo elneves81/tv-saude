@@ -3,8 +3,6 @@ import axios from 'axios';
 import YouTube from 'react-youtube';
 import { API_BASE_URL, getUploadsUrl } from './config/api';
 import LogoDitis from './components/LogoDitis';
-import AudioVisualizer from './components/AudioVisualizer';
-import audioManager from './utils/audioManager';
 
 function App() {
   const [videos, setVideos] = useState([]);
@@ -17,20 +15,8 @@ function App() {
   const [lastCommandId, setLastCommandId] = useState(null);
   const [messages, setMessages] = useState([]);
   const [currentMessageIndex, setCurrentMessageIndex] = useState(0);
-  const [isTransitioning, setIsTransitioning] = useState(false);
-  const [showSubtitles, setShowSubtitles] = useState(true);
-  const [backgroundMusic, setBackgroundMusic] = useState(true);
-  const [audioLevel, setAudioLevel] = useState(0);
-  const [isMuted, setIsMuted] = useState(false);
-  const [showAudioVisualizer, setShowAudioVisualizer] = useState(true);
-  const [visualizerType, setVisualizerType] = useState('bars');
   const videoRef = useRef(null);
   const youtubeRef = useRef(null);
-  const backgroundAudioRef = useRef(null);
-  
-  // Refs para controlar intervalos e evitar conflitos
-  const intervalsRef = useRef({});
-  const lastDataRef = useRef({ videos: [], messages: [], playlist: null });
 
   // Atualizar relógio a cada segundo
   useEffect(() => {
@@ -82,7 +68,10 @@ function App() {
       if (command && command.id !== lastCommandId && command.comando) {
         setLastCommandId(command.id);
         // Evitar executar comandos problemáticos
-        if (command.comando !== 'play' || command.parametros !== null) {
+        const comandosProblematicos = ['play', 'background_music_off', 'background_music_on'];
+        const isComandoProblematico = comandosProblematicos.includes(command.comando) && command.parametros === null;
+        
+        if (!isComandoProblematico) {
           executeCommand(command.comando, command.parametros);
         }
       }
@@ -102,7 +91,10 @@ function App() {
   // Executar comando do controle remoto
   const executeCommand = (comando, parametros) => {
     // Só fazer log se não for um comando repetitivo com null
-    if (comando !== 'play' || parametros !== null) {
+    const comandosProblematicos = ['play', 'background_music_off', 'background_music_on'];
+    const isComandoProblematico = comandosProblematicos.includes(comando) && parametros === null;
+    
+    if (!isComandoProblematico) {
       console.log('Executando comando:', comando, parametros);
     }
     
@@ -222,12 +214,11 @@ function App() {
     }
   }, [messages.length]);
 
-  // Verificar comandos quando lastCommandId muda
+  // Executar checkRemoteCommands apenas uma vez na inicialização
   useEffect(() => {
-    if (lastCommandId === null) {
-      checkRemoteCommands();
-    }
-  }, [lastCommandId]);
+    // Executar uma verificação inicial de comandos
+    checkRemoteCommands();
+  }, []); // Array vazio para executar apenas uma vez
 
   // Avançar para próximo vídeo
   const nextVideo = () => {

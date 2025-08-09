@@ -953,7 +953,11 @@ app.get('/api/controle/ultimo', (req, res) => {
   // Buscar último comando que não seja problemático
   db.get(
     `SELECT * FROM controle_tv 
-     WHERE NOT (comando = 'play' AND (parametros IS NULL OR parametros = 'null'))
+     WHERE NOT (
+       (comando = 'play' AND (parametros IS NULL OR parametros = 'null')) OR
+       (comando = 'background_music_off' AND (parametros IS NULL OR parametros = 'null')) OR
+       (comando = 'background_music_on' AND (parametros IS NULL OR parametros = 'null'))
+     )
      ORDER BY timestamp DESC LIMIT 1`,
     (err, row) => {
       if (err) {
