@@ -76,6 +76,47 @@ const RemoteControl = () => {
     }
   };
 
+  // Enviar comando de áudio de fundo
+  const sendAudioCommand = async (action, trackId = null, volume = null) => {
+    try {
+      setLoading(true);
+      await axios.post(`${API_BASE_URL}/audio/background`, {
+        action,
+        trackId,
+        volume
+      });
+      
+      showSuccess(`Comando de áudio "${action}" enviado para a TV!`);
+      setTimeout(checkTvStatus, 1000);
+      
+    } catch (error) {
+      console.error('Erro ao enviar comando de áudio:', error);
+      showError(error.response?.data?.error || 'Erro ao enviar comando de áudio para a TV');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Enviar comando de visualizador
+  const sendVisualizerCommand = async (action, type = null) => {
+    try {
+      setLoading(true);
+      await axios.post(`${API_BASE_URL}/audio/visualizer`, {
+        action,
+        type
+      });
+      
+      showSuccess(`Comando de visualizador "${action}" enviado para a TV!`);
+      setTimeout(checkTvStatus, 1000);
+      
+    } catch (error) {
+      console.error('Erro ao enviar comando de visualizador:', error);
+      showError(error.response?.data?.error || 'Erro ao enviar comando de visualizador para a TV');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Limpar comandos antigos
   const clearOldCommands = async () => {
     try {
@@ -307,7 +348,7 @@ const RemoteControl = () => {
         
         <div className="grid grid-cols-1 gap-4 mb-6 md:grid-cols-2">
           <button
-            onClick={() => sendCommand('auto_balance_audio')}
+            onClick={() => sendAudioCommand('auto_balance')}
             disabled={loading}
             className="flex flex-col items-center justify-center p-6 transition-colors border border-purple-200 rounded-lg bg-purple-50 hover:bg-purple-100 disabled:opacity-50"
           >
@@ -316,7 +357,7 @@ const RemoteControl = () => {
           </button>
 
           <button
-            onClick={() => sendCommand('toggle_background_music')}
+            onClick={() => sendAudioCommand('toggle')}
             disabled={loading}
             className="flex flex-col items-center justify-center p-6 transition-colors border border-indigo-200 rounded-lg bg-indigo-50 hover:bg-indigo-100 disabled:opacity-50"
           >
@@ -330,7 +371,7 @@ const RemoteControl = () => {
           <h3 className="mb-3 font-medium text-gray-800 text-md">🎶 Faixas de Áudio</h3>
           <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
             <button
-              onClick={() => sendCommand('change_background_track', { trackId: 'ambient-1' })}
+              onClick={() => sendAudioCommand('change_track', 'ambient-1')}
               disabled={loading}
               className="flex flex-col items-center justify-center p-4 transition-colors border border-teal-200 rounded-lg bg-teal-50 hover:bg-teal-100 disabled:opacity-50"
             >
@@ -339,7 +380,7 @@ const RemoteControl = () => {
             </button>
 
             <button
-              onClick={() => sendCommand('change_background_track', { trackId: 'ambient-2' })}
+              onClick={() => sendAudioCommand('change_track', 'ambient-2')}
               disabled={loading}
               className="flex flex-col items-center justify-center p-4 transition-colors border rounded-lg bg-emerald-50 hover:bg-emerald-100 border-emerald-200 disabled:opacity-50"
             >
@@ -348,7 +389,7 @@ const RemoteControl = () => {
             </button>
 
             <button
-              onClick={() => sendCommand('change_background_track', { trackId: 'ambient-3' })}
+              onClick={() => sendAudioCommand('change_track', 'ambient-3')}
               disabled={loading}
               className="flex flex-col items-center justify-center p-4 transition-colors border rounded-lg bg-cyan-50 hover:bg-cyan-100 border-cyan-200 disabled:opacity-50"
             >
@@ -365,7 +406,7 @@ const RemoteControl = () => {
         
         <div className="grid grid-cols-2 gap-4 mb-4 md:grid-cols-4">
           <button
-            onClick={() => sendCommand('toggle_audio_visualizer')}
+            onClick={() => sendVisualizerCommand('toggle')}
             disabled={loading}
             className="flex flex-col items-center justify-center p-4 transition-colors border border-pink-200 rounded-lg bg-pink-50 hover:bg-pink-100 disabled:opacity-50"
           >
@@ -374,7 +415,7 @@ const RemoteControl = () => {
           </button>
 
           <button
-            onClick={() => sendCommand('change_visualizer_type', { type: 'bars' })}
+            onClick={() => sendVisualizerCommand('change_type', 'bars')}
             disabled={loading}
             className="flex flex-col items-center justify-center p-4 transition-colors border rounded-lg bg-violet-50 hover:bg-violet-100 border-violet-200 disabled:opacity-50"
           >
@@ -383,7 +424,7 @@ const RemoteControl = () => {
           </button>
 
           <button
-            onClick={() => sendCommand('change_visualizer_type', { type: 'wave' })}
+            onClick={() => sendVisualizerCommand('change_type', 'wave')}
             disabled={loading}
             className="flex flex-col items-center justify-center p-4 transition-colors border rounded-lg bg-fuchsia-50 hover:bg-fuchsia-100 border-fuchsia-200 disabled:opacity-50"
           >
@@ -392,7 +433,7 @@ const RemoteControl = () => {
           </button>
 
           <button
-            onClick={() => sendCommand('change_visualizer_type', { type: 'circle' })}
+            onClick={() => sendVisualizerCommand('change_type', 'circle')}
             disabled={loading}
             className="flex flex-col items-center justify-center p-4 transition-colors border rounded-lg bg-rose-50 hover:bg-rose-100 border-rose-200 disabled:opacity-50"
           >

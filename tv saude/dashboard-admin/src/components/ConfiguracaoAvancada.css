@@ -1,0 +1,441 @@
+/* Estilos para a interface de configuração avançada */
+
+.configuracao-avancada {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  padding: 20px;
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.config-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(255, 255, 255, 0.95);
+  padding: 20px 30px;
+  border-radius: 15px;
+  margin-bottom: 20px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(10px);
+}
+
+.config-header h1 {
+  margin: 0;
+  color: #2c3e50;
+  font-size: 2.2rem;
+  font-weight: 700;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.config-actions {
+  display: flex;
+  gap: 15px;
+}
+
+.config-actions button,
+.config-actions .btn-import {
+  padding: 12px 20px;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 14px;
+  transition: all 0.3s ease;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-export {
+  background: linear-gradient(45deg, #4CAF50, #45a049);
+  color: white;
+}
+
+.btn-import {
+  background: linear-gradient(45deg, #2196F3, #1976D2);
+  color: white;
+}
+
+.btn-reset {
+  background: linear-gradient(45deg, #FF9800, #F57C00);
+  color: white;
+}
+
+.btn-save {
+  background: linear-gradient(45deg, #9C27B0, #7B1FA2);
+  color: white;
+}
+
+.btn-test {
+  background: linear-gradient(45deg, #00BCD4, #0097A7);
+  color: white;
+}
+
+.config-actions button:hover,
+.config-actions .btn-import:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+}
+
+.config-actions button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.message {
+  padding: 15px 20px;
+  border-radius: 8px;
+  margin-bottom: 20px;
+  font-weight: 500;
+  animation: slideIn 0.3s ease;
+}
+
+.message.success {
+  background: linear-gradient(45deg, #4CAF50, #45a049);
+  color: white;
+  border-left: 5px solid #2E7D32;
+}
+
+.message.error {
+  background: linear-gradient(45deg, #f44336, #d32f2f);
+  color: white;
+  border-left: 5px solid #C62828;
+}
+
+.message.warning {
+  background: linear-gradient(45deg, #FF9800, #F57C00);
+  color: white;
+  border-left: 5px solid #EF6C00;
+}
+
+.config-content {
+  display: flex;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 15px;
+  overflow: hidden;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  backdrop-filter: blur(10px);
+  min-height: 600px;
+}
+
+.config-tabs {
+  width: 280px;
+  background: linear-gradient(180deg, #2c3e50 0%, #34495e 100%);
+  padding: 20px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.tab {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 15px 25px;
+  background: transparent;
+  border: none;
+  color: #ecf0f1;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  text-align: left;
+  border-left: 4px solid transparent;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.tab:hover {
+  background: rgba(255, 255, 255, 0.1);
+  transform: translateX(5px);
+}
+
+.tab.active {
+  background: linear-gradient(45deg, #3498db, #2980b9);
+  border-left-color: #e74c3c;
+  transform: translateX(10px);
+  box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
+}
+
+.tab-icon {
+  font-size: 18px;
+  min-width: 20px;
+}
+
+.tab-label {
+  font-weight: 600;
+}
+
+.config-panel {
+  flex: 1;
+  padding: 30px;
+  overflow-y: auto;
+  max-height: 70vh;
+}
+
+.config-section h2 {
+  color: #2c3e50;
+  margin: 0 0 25px 0;
+  font-size: 1.8rem;
+  font-weight: 700;
+  border-bottom: 3px solid #3498db;
+  padding-bottom: 10px;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.1);
+}
+
+.config-group {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.config-item {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  padding: 15px;
+  background: rgba(255, 255, 255, 0.8);
+  border-radius: 10px;
+  border: 2px solid transparent;
+  transition: all 0.3s ease;
+}
+
+.config-item:hover {
+  background: rgba(255, 255, 255, 1);
+  border-color: #3498db;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.1);
+}
+
+.config-item span:first-child {
+  min-width: 200px;
+  font-weight: 600;
+  color: #2c3e50;
+}
+
+.config-item input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  accent-color: #3498db;
+  cursor: pointer;
+}
+
+.config-item input[type="number"],
+.config-item input[type="text"],
+.config-item input[type="time"],
+.config-item select {
+  padding: 10px 15px;
+  border: 2px solid #bdc3c7;
+  border-radius: 6px;
+  font-size: 14px;
+  background: white;
+  transition: border-color 0.3s ease;
+  min-width: 120px;
+}
+
+.config-item input[type="number"]:focus,
+.config-item input[type="text"]:focus,
+.config-item input[type="time"]:focus,
+.config-item select:focus {
+  outline: none;
+  border-color: #3498db;
+  box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.2);
+}
+
+.config-item input[type="range"] {
+  flex: 1;
+  height: 6px;
+  background: #ddd;
+  border-radius: 3px;
+  outline: none;
+  -webkit-appearance: none;
+}
+
+.config-item input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  background: #3498db;
+  border-radius: 50%;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.config-item input[type="range"]::-webkit-slider-thumb:hover {
+  background: #2980b9;
+  transform: scale(1.2);
+}
+
+.subsection {
+  margin-top: 30px;
+  padding: 20px;
+  background: linear-gradient(135deg, #f8f9fa 0%, #e9ecef 100%);
+  border-radius: 10px;
+  border-left: 5px solid #3498db;
+}
+
+.subsection h3 {
+  margin: 0 0 15px 0;
+  color: #2c3e50;
+  font-size: 1.3rem;
+  font-weight: 600;
+}
+
+.subsection .config-item {
+  background: rgba(255, 255, 255, 0.9);
+  margin-bottom: 10px;
+}
+
+@keyframes slideIn {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Scrollbar customizada */
+.config-panel::-webkit-scrollbar {
+  width: 8px;
+}
+
+.config-panel::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+.config-panel::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #3498db, #2980b9);
+  border-radius: 4px;
+}
+
+.config-panel::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #2980b9, #1f639a);
+}
+
+/* Responsividade */
+@media (max-width: 1024px) {
+  .configuracao-avancada {
+    padding: 10px;
+  }
+
+  .config-header {
+    flex-direction: column;
+    gap: 15px;
+    text-align: center;
+  }
+
+  .config-content {
+    flex-direction: column;
+  }
+
+  .config-tabs {
+    width: 100%;
+    flex-direction: row;
+    overflow-x: auto;
+    padding: 15px;
+  }
+
+  .tab {
+    min-width: 150px;
+    flex-shrink: 0;
+  }
+
+  .config-panel {
+    padding: 20px;
+  }
+
+  .config-item {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .config-item span:first-child {
+    min-width: auto;
+    margin-bottom: 5px;
+  }
+}
+
+@media (max-width: 768px) {
+  .config-header h1 {
+    font-size: 1.8rem;
+  }
+
+  .config-actions {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .config-actions button,
+  .config-actions .btn-import {
+    padding: 10px 15px;
+    font-size: 12px;
+  }
+
+  .config-panel {
+    padding: 15px;
+  }
+
+  .config-section h2 {
+    font-size: 1.5rem;
+  }
+}
+
+/* Animações para elementos interativos */
+.config-item {
+  animation: fadeInUp 0.5s ease;
+}
+
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Estados especiais */
+.config-item.disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.config-item.highlight {
+  background: linear-gradient(45deg, #fff3cd, #ffeaa7);
+  border-color: #f39c12;
+}
+
+/* Tooltips */
+.config-item[title] {
+  position: relative;
+}
+
+.config-item[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #2c3e50;
+  color: white;
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  white-space: nowrap;
+  z-index: 1000;
+  opacity: 0;
+  animation: tooltipFadeIn 0.3s ease forwards;
+}
+
+@keyframes tooltipFadeIn {
+  to {
+    opacity: 1;
+  }
+}

@@ -36,6 +36,142 @@ app.use(session({
 app.use('/uploads', express.static(path.join(__dirname, '../uploads')));
 app.use('/audio', express.static(path.join(__dirname, '../audio')));
 app.use('/images', express.static(path.join(__dirname, '../images')));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Endpoint de health check
+app.get('/api/health', (req, res) => {
+  res.json({ 
+    status: 'OK', 
+    timestamp: new Date().toISOString(),
+    message: 'Servidor TV Saúde funcionando corretamente'
+  });
+});
+
+// Importar verificador de IP
+const { verificarIPOnline, verificarMultiplosIPs } = require('./ip-checker');
+
+// Importar Sistema de Avisos Interativos
+const { integrarSistemaAvisos } = require('./integrar-sistema-avisos');
+
+// Importar Sincronizador de Avisos
+const { integrarSincronizadorAvisos } = require('./integrar-sincronizador');
+
+// 🎯 Integrar Sistema de Avisos Interativos
+console.log('🎯 Integrando Sistema de Avisos Interativos...');
+const sistemaAvisos = integrarSistemaAvisos(app);
+console.log('✅ Sistema de Avisos integrado com sucesso!');
+
+// 🔄 Integrar Sincronizador de Avisos
+console.log('🔄 Integrando Sincronizador para Frontend TV...');
+const sincronizador = integrarSincronizadorAvisos(app);
+console.log('✅ Sincronizador integrado com sucesso!');
+
+// Endpoint para verificar se um IP específico está online
+app.get('/api/ip/verificar/:ip', async (req, res) => {
+  try {
+    const ip = req.params.ip;
+    console.log(`🔍 Verificando conectividade do IP: ${ip}`);
+    
+    const resultado = await verificarIPOnline(ip);
+    
+    res.json({
+      success: true,
+      data: resultado
+    });
+  } catch (error) {
+    console.error('❌ Erro ao verificar IP:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Endpoint para verificar múltiplos IPs
+app.post('/api/ip/verificar-multiplos', async (req, res) => {
+  try {
+    const { ips } = req.body;
+    
+    if (!Array.isArray(ips) || ips.length === 0) {
+      return res.status(400).json({
+        success: false,
+        error: 'Lista de IPs é obrigatória'
+      });
+    }
+    
+    console.log(`🔍 Verificando conectividade de ${ips.length} IPs`);
+    
+    const resultado = await verificarMultiplosIPs(ips);
+    
+    res.json({
+      success: true,
+      data: resultado
+    });
+  } catch (error) {
+    console.error('❌ Erro ao verificar múltiplos IPs:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
+
+// Endpoint para verificar status das localidades
+app.get('/api/localidades/status', async (req, res) => {
+  try {
+    // Buscar todos os IPs das localidades (corrigido nome da coluna)
+    db.all(`
+      SELECT l.id, l.nome, li.ip_address as ip 
+      FROM localidades l 
+      LEFT JOIN localidade_ips li ON l.id = li.localidade_id
+      WHERE li.ip_address IS NOT NULL
+    `, async (err, localidades) => {
+      if (err) {
+        console.error('❌ Erro ao buscar localidades:', err);
+        return res.status(500).json({
+          success: false,
+          error: 'Erro ao buscar localidades'
+        });
+      }
+      
+      console.log(`🔍 Encontradas ${localidades.length} localidades com IP configurado`);
+      
+      // Verificar conectividade de cada localidade
+      const resultados = [];
+      
+      for (const localidade of localidades) {
+        console.log(`🔍 Verificando IP ${localidade.ip} da localidade ${localidade.nome}`);
+        const statusIP = await verificarIPOnline(localidade.ip);
+        resultados.push({
+          id: localidade.id,
+          nome: localidade.nome,
+          ip: localidade.ip,
+          online: statusIP.online,
+          responseTime: statusIP.responseTime,
+          message: statusIP.message,
+          timestamp: statusIP.timestamp
+        });
+      }
+      
+      res.json({
+        success: true,
+        data: {
+          timestamp: new Date().toISOString(),
+          total: resultados.length,
+          online: resultados.filter(r => r.online).length,
+          offline: resultados.filter(r => !r.online).length,
+          localidades: resultados
+        }
+      });
+    });
+  } catch (error) {
+    console.error('❌ Erro ao verificar status das localidades:', error);
+    res.status(500).json({
+      success: false,
+      error: error.message
+    });
+  }
+});
 
 // Configuração do banco de dados SQLite
 const dbPath = path.join(__dirname, '../database/tv_saude.db');
@@ -165,6 +301,76 @@ db.serialize(() => {
       data_atualizacao DATETIME DEFAULT CURRENT_TIMESTAMP,
       criado_por INTEGER,
       FOREIGN KEY (criado_por) REFERENCES usuarios (id)
+    )
+  `);
+
+  // Tabela de localidades
+  db.run(`
+    CREATE TABLE IF NOT EXISTS localidades (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      nome TEXT NOT NULL,
+      descricao TEXT,
+      ativo BOOLEAN DEFAULT 1,
+      data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+      data_atualizacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+      criado_por INTEGER,
+      FOREIGN KEY (criado_por) REFERENCES usuarios (id)
+    )
+  `);
+
+  // Tabela de IPs por localidade
+  db.run(`
+    CREATE TABLE IF NOT EXISTS localidade_ips (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      localidade_id INTEGER NOT NULL,
+      ip_address TEXT NOT NULL,
+      ip_range TEXT,
+      descricao TEXT,
+      ativo BOOLEAN DEFAULT 1,
+      data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (localidade_id) REFERENCES localidades (id) ON DELETE CASCADE
+    )
+  `);
+
+  // Tabela de relacionamento localidade-playlists
+  db.run(`
+    CREATE TABLE IF NOT EXISTS localidade_playlists (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      localidade_id INTEGER NOT NULL,
+      playlist_id INTEGER NOT NULL,
+      prioridade INTEGER DEFAULT 1,
+      ativo BOOLEAN DEFAULT 1,
+      data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (localidade_id) REFERENCES localidades (id) ON DELETE CASCADE,
+      FOREIGN KEY (playlist_id) REFERENCES playlists (id) ON DELETE CASCADE
+    )
+  `);
+
+  // Tabela de relacionamento localidade-vídeos (para vídeos específicos sem playlist)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS localidade_videos (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      localidade_id INTEGER NOT NULL,
+      video_id INTEGER NOT NULL,
+      prioridade INTEGER DEFAULT 1,
+      ativo BOOLEAN DEFAULT 1,
+      data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (localidade_id) REFERENCES localidades (id) ON DELETE CASCADE,
+      FOREIGN KEY (video_id) REFERENCES videos (id) ON DELETE CASCADE
+    )
+  `);
+
+  // Tabela de relacionamento localidade-imagens (para imagens específicas por localidade)
+  db.run(`
+    CREATE TABLE IF NOT EXISTS localidade_imagens (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      localidade_id INTEGER NOT NULL,
+      imagem_id INTEGER NOT NULL,
+      prioridade INTEGER DEFAULT 1,
+      ativo BOOLEAN DEFAULT 1,
+      data_criacao DATETIME DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY (localidade_id) REFERENCES localidades (id) ON DELETE CASCADE,
+      FOREIGN KEY (imagem_id) REFERENCES imagens_slideshow (id) ON DELETE CASCADE
     )
   `);
   
@@ -1146,6 +1352,135 @@ app.get('/api/controle/ultimo', (req, res) => {
   );
 });
 
+// ===== ROTAS DE CONTROLE DE ÁUDIO AVANÇADO =====
+
+// Listar faixas de áudio disponíveis
+app.get('/api/audio/tracks', (req, res) => {
+  const fs = require('fs');
+  const audioPath = path.join(__dirname, '../audio');
+  
+  try {
+    // Ler todos os arquivos da pasta audio
+    const files = fs.readdirSync(audioPath);
+    
+    // Filtrar apenas arquivos .mp3
+    const mp3Files = files.filter(file => 
+      file.toLowerCase().endsWith('.mp3') && 
+      !file.includes('.placeholder')
+    );
+    
+    // Criar lista de tracks dinamicamente
+    const tracks = mp3Files.map((file, index) => {
+      // Criar nome amigável removendo extensão e formatando
+      const name = file
+        .replace('.mp3', '')
+        .replace(/-/g, ' ')
+        .replace(/\b\w/g, l => l.toUpperCase());
+      
+      return {
+        id: `track-${index + 1}`,
+        name: name,
+        url: `/audio/${file}`,
+        description: `Música ambiente: ${name}`
+      };
+    });
+    
+    res.json(tracks);
+  } catch (error) {
+    console.error('Erro ao listar faixas de áudio:', error);
+    res.status(500).json({ error: 'Erro ao carregar faixas de áudio' });
+  }
+});
+
+// Controle de áudio de fundo
+app.post('/api/audio/background', authenticateToken, (req, res) => {
+  const { action, trackId, volume } = req.body;
+  
+  let comando;
+  let parametros = {};
+  
+  switch(action) {
+    case 'toggle':
+      comando = 'toggle_background_music';
+      break;
+    case 'on':
+      comando = 'background_music_on';
+      break;
+    case 'off':
+      comando = 'background_music_off';
+      break;
+    case 'change_track':
+      comando = 'change_background_track';
+      parametros.trackId = trackId;
+      break;
+    case 'volume_up':
+      comando = 'background_volume_up';
+      break;
+    case 'volume_down':
+      comando = 'background_volume_down';
+      break;
+    case 'auto_balance':
+      comando = 'auto_balance_audio';
+      break;
+    default:
+      return res.status(400).json({ error: 'Ação inválida' });
+  }
+  
+  db.run(
+    'INSERT INTO controle_tv (comando, parametros, enviado_por) VALUES (?, ?, ?)',
+    [comando, Object.keys(parametros).length ? JSON.stringify(parametros) : null, req.user.id],
+    function(err) {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      res.json({ 
+        id: this.lastID,
+        comando,
+        parametros,
+        message: `Comando de áudio ${action} enviado com sucesso!` 
+      });
+    }
+  );
+});
+
+// Controle do visualizador de áudio
+app.post('/api/audio/visualizer', authenticateToken, (req, res) => {
+  const { action, type } = req.body;
+  
+  let comando;
+  let parametros = {};
+  
+  switch(action) {
+    case 'toggle':
+      comando = 'toggle_audio_visualizer';
+      break;
+    case 'change_type':
+      comando = 'change_visualizer_type';
+      parametros.type = type;
+      break;
+    default:
+      return res.status(400).json({ error: 'Ação inválida' });
+  }
+  
+  db.run(
+    'INSERT INTO controle_tv (comando, parametros, enviado_por) VALUES (?, ?, ?)',
+    [comando, Object.keys(parametros).length ? JSON.stringify(parametros) : null, req.user.id],
+    function(err) {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      res.json({ 
+        id: this.lastID,
+        comando,
+        parametros,
+        message: `Comando de visualizador ${action} enviado com sucesso!` 
+      });
+    }
+  );
+});
+
 // Limpar comandos antigos (protegido)
 app.delete('/api/controle/limpar', authenticateToken, (req, res) => {
   // Manter apenas os últimos 10 comandos
@@ -1320,6 +1655,735 @@ app.delete('/api/mensagens/:id', authenticateToken, (req, res) => {
   });
 });
 
+// ===== ROTAS DE LOCALIDADES =====
+
+// Função para verificar se um IP está em uma faixa
+const isIpInRange = (ip, range) => {
+  if (!range) return false;
+  
+  // Suporte para CIDR (ex: 192.168.1.0/24)
+  if (range.includes('/')) {
+    const [network, prefixLength] = range.split('/');
+    const networkParts = network.split('.').map(Number);
+    const ipParts = ip.split('.').map(Number);
+    const prefix = parseInt(prefixLength);
+    
+    // Converter para binário e comparar
+    const networkBinary = (networkParts[0] << 24) + (networkParts[1] << 16) + (networkParts[2] << 8) + networkParts[3];
+    const ipBinary = (ipParts[0] << 24) + (ipParts[1] << 16) + (ipParts[2] << 8) + ipParts[3];
+    const mask = (-1 << (32 - prefix)) >>> 0;
+    
+    return (networkBinary & mask) === (ipBinary & mask);
+  }
+  
+  // Suporte para range simples (ex: 192.168.1.1-192.168.1.100)
+  if (range.includes('-')) {
+    const [startIp, endIp] = range.split('-');
+    const startParts = startIp.split('.').map(Number);
+    const endParts = endIp.split('.').map(Number);
+    const ipParts = ip.split('.').map(Number);
+    
+    const startBinary = (startParts[0] << 24) + (startParts[1] << 16) + (startParts[2] << 8) + startParts[3];
+    const endBinary = (endParts[0] << 24) + (endParts[1] << 16) + (endParts[2] << 8) + endParts[3];
+    const ipBinary = (ipParts[0] << 24) + (ipParts[1] << 16) + (ipParts[2] << 8) + ipParts[3];
+    
+    return ipBinary >= startBinary && ipBinary <= endBinary;
+  }
+  
+  // IP exato
+  return ip === range;
+};
+
+// Função para detectar localidade baseada no IP
+const detectLocalidade = (clientIp) => {
+  return new Promise((resolve, reject) => {
+    db.all(`
+      SELECT l.*, li.ip_address, li.ip_range 
+      FROM localidades l 
+      INNER JOIN localidade_ips li ON l.id = li.localidade_id 
+      WHERE l.ativo = 1 AND li.ativo = 1
+    `, (err, rows) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      
+      // Procurar por correspondência de IP
+      for (const row of rows) {
+        if (row.ip_address === clientIp || isIpInRange(clientIp, row.ip_range)) {
+          resolve({
+            id: row.id,
+            nome: row.nome,
+            descricao: row.descricao,
+            ip_matched: row.ip_address || row.ip_range
+          });
+          return;
+        }
+      }
+      
+      // Nenhuma localidade encontrada
+      resolve(null);
+    });
+  });
+};
+
+// Listar todas as localidades (protegido)
+app.get('/api/localidades', authenticateToken, (req, res) => {
+  db.all(
+    `SELECT l.*, u.nome as criado_por_nome,
+     COUNT(li.id) as total_ips
+     FROM localidades l 
+     LEFT JOIN usuarios u ON l.criado_por = u.id
+     LEFT JOIN localidade_ips li ON l.id = li.localidade_id AND li.ativo = 1
+     GROUP BY l.id
+     ORDER BY l.data_criacao DESC`,
+    (err, rows) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      res.json(rows);
+    }
+  );
+});
+
+// Obter conteúdo por localidade baseado no IP (público - para as TVs)
+// IMPORTANTE: Esta rota deve vir ANTES de /api/localidades/:id
+app.get('/api/localidades/conteudo', async (req, res) => {
+  try {
+    // Obter IP do cliente
+    const clientIp = req.ip || req.connection.remoteAddress || req.socket.remoteAddress || 
+                    (req.connection.socket ? req.connection.socket.remoteAddress : null) ||
+                    req.headers['x-forwarded-for']?.split(',')[0]?.trim() ||
+                    req.headers['x-real-ip'] ||
+                    '127.0.0.1';
+
+    console.log(`🌍 Detectando localidade para IP: ${clientIp}`);
+
+    // Detectar localidade
+    const localidade = await detectLocalidade(clientIp);
+    
+    if (!localidade) {
+      // Se não encontrou localidade específica, retornar conteúdo padrão
+      console.log(`📍 Nenhuma localidade específica encontrada para IP ${clientIp}, usando conteúdo padrão`);
+      
+      // Buscar playlist ativa global
+      db.get('SELECT * FROM playlists WHERE ativa = 1', (err, playlist) => {
+        if (err) {
+          res.status(500).json({ error: err.message });
+          return;
+        }
+        
+        if (!playlist) {
+          // Retornar todos os vídeos ativos
+          db.all(
+            'SELECT * FROM videos WHERE ativo = 1 ORDER BY ordem ASC, data_criacao DESC',
+            (err, videos) => {
+              if (err) {
+                res.status(500).json({ error: err.message });
+                return;
+              }
+              res.json({
+                localidade: null,
+                playlist: null,
+                videos: videos || [],
+                ip_cliente: clientIp
+              });
+            }
+          );
+          return;
+        }
+
+        // Buscar vídeos da playlist ativa
+        db.all(`
+          SELECT v.*, pv.ordem as playlist_ordem 
+          FROM videos v 
+          INNER JOIN playlist_videos pv ON v.id = pv.video_id 
+          WHERE pv.playlist_id = ? AND v.ativo = 1
+          ORDER BY pv.ordem ASC
+        `, [playlist.id], (err, videos) => {
+          if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+          }
+          
+          res.json({
+            localidade: null,
+            playlist,
+            videos: videos || [],
+            ip_cliente: clientIp
+          });
+        });
+      });
+      return;
+    }
+
+    console.log(`📍 Localidade detectada: ${localidade.nome} (IP: ${localidade.ip_matched})`);
+
+    // Buscar playlists associadas à localidade
+    db.all(`
+      SELECT p.*, lp.prioridade 
+      FROM playlists p 
+      INNER JOIN localidade_playlists lp ON p.id = lp.playlist_id 
+      WHERE lp.localidade_id = ? AND lp.ativo = 1 AND p.ativa = 1
+      ORDER BY lp.prioridade DESC
+    `, [localidade.id], (err, playlists) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+
+      if (playlists.length === 0) {
+        // Se não há playlists específicas, buscar vídeos e imagens específicos da localidade
+        db.all(`
+          SELECT v.*, lv.prioridade 
+          FROM videos v 
+          INNER JOIN localidade_videos lv ON v.id = lv.video_id 
+          WHERE lv.localidade_id = ? AND lv.ativo = 1 AND v.ativo = 1
+          ORDER BY lv.prioridade DESC, v.ordem ASC
+        `, [localidade.id], (err, videos) => {
+          if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+          }
+
+          // Buscar imagens específicas da localidade
+          db.all(`
+            SELECT i.*, li.prioridade 
+            FROM imagens_slideshow i 
+            INNER JOIN localidade_imagens li ON i.id = li.imagem_id 
+            WHERE li.localidade_id = ? AND li.ativo = 1 AND i.ativo = 1
+            ORDER BY li.prioridade DESC, i.ordem ASC
+          `, [localidade.id], (err, imagens) => {
+            if (err) {
+              res.status(500).json({ error: err.message });
+              return;
+            }
+
+            res.json({
+              localidade,
+              playlist: null,
+              videos: videos || [],
+              imagens: imagens || [],
+              ip_cliente: clientIp
+            });
+          });
+        });
+        return;
+      }
+
+      // Usar a playlist de maior prioridade
+      const playlistPrincipal = playlists[0];
+      
+      // Buscar vídeos da playlist
+      db.all(`
+        SELECT v.*, pv.ordem as playlist_ordem 
+        FROM videos v 
+        INNER JOIN playlist_videos pv ON v.id = pv.video_id 
+        WHERE pv.playlist_id = ? AND v.ativo = 1
+        ORDER BY pv.ordem ASC
+      `, [playlistPrincipal.id], (err, videos) => {
+        if (err) {
+          res.status(500).json({ error: err.message });
+          return;
+        }
+        
+        res.json({
+          localidade,
+          playlist: playlistPrincipal,
+          videos: videos || [],
+          ip_cliente: clientIp
+        });
+      });
+    });
+
+  } catch (error) {
+    console.error('Erro ao detectar localidade:', error);
+    res.status(500).json({ error: 'Erro ao detectar localidade' });
+  }
+});
+
+// Obter localidade por ID com IPs (protegido)
+app.get('/api/localidades/:id', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  
+  // Buscar dados da localidade
+  db.get('SELECT * FROM localidades WHERE id = ?', [id], (err, localidade) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    if (!localidade) {
+      res.status(404).json({ error: 'Localidade não encontrada' });
+      return;
+    }
+
+    // Buscar IPs da localidade
+    db.all(`
+      SELECT * FROM localidade_ips 
+      WHERE localidade_id = ? AND ativo = 1
+      ORDER BY data_criacao ASC
+    `, [id], (err, ips) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      
+      res.json({
+        ...localidade,
+        ips: ips || []
+      });
+    });
+  });
+});
+
+// Criar nova localidade (protegido)
+app.post('/api/localidades', authenticateToken, (req, res) => {
+  const { nome, descricao } = req.body;
+  
+  if (!nome || !nome.trim()) {
+    return res.status(400).json({ error: 'Nome da localidade é obrigatório' });
+  }
+
+  db.run(
+    'INSERT INTO localidades (nome, descricao, criado_por) VALUES (?, ?, ?)',
+    [nome.trim(), descricao || '', req.user.id],
+    function(err) {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      res.json({
+        id: this.lastID,
+        nome: nome.trim(),
+        descricao: descricao || '',
+        ativo: true,
+        message: 'Localidade criada com sucesso!'
+      });
+    }
+  );
+});
+
+// Atualizar localidade (protegido)
+app.put('/api/localidades/:id', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  const { nome, descricao, ativo } = req.body;
+
+  if (!nome || !nome.trim()) {
+    return res.status(400).json({ error: 'Nome da localidade é obrigatório' });
+  }
+
+  db.run(
+    'UPDATE localidades SET nome = ?, descricao = ?, ativo = ?, data_atualizacao = CURRENT_TIMESTAMP WHERE id = ?',
+    [nome.trim(), descricao || '', ativo, id],
+    function(err) {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      if (this.changes === 0) {
+        res.status(404).json({ error: 'Localidade não encontrada' });
+        return;
+      }
+      res.json({ message: 'Localidade atualizada com sucesso!' });
+    }
+  );
+});
+
+// Deletar localidade (protegido)
+app.delete('/api/localidades/:id', authenticateToken, (req, res) => {
+  const { id } = req.params;
+
+  // Primeiro deletar relacionamentos
+  db.run('DELETE FROM localidade_ips WHERE localidade_id = ?', [id], (err) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+
+    db.run('DELETE FROM localidade_playlists WHERE localidade_id = ?', [id], (err) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+
+      db.run('DELETE FROM localidade_videos WHERE localidade_id = ?', [id], (err) => {
+        if (err) {
+          res.status(500).json({ error: err.message });
+          return;
+        }
+
+        // Depois deletar a localidade
+        db.run('DELETE FROM localidades WHERE id = ?', [id], function(err) {
+          if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+          }
+          if (this.changes === 0) {
+            res.status(404).json({ error: 'Localidade não encontrada' });
+            return;
+          }
+          res.json({ message: 'Localidade deletada com sucesso!' });
+        });
+      });
+    });
+  });
+});
+
+// Adicionar IP à localidade (protegido)
+app.post('/api/localidades/:id/ips', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  const { ip_address, ip_range, descricao } = req.body;
+
+  if (!ip_address && !ip_range) {
+    return res.status(400).json({ error: 'IP ou faixa de IP é obrigatório' });
+  }
+
+  // Verificar se a localidade existe
+  db.get('SELECT id FROM localidades WHERE id = ?', [id], (err, localidade) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    if (!localidade) {
+      res.status(404).json({ error: 'Localidade não encontrada' });
+      return;
+    }
+
+    db.run(
+      'INSERT INTO localidade_ips (localidade_id, ip_address, ip_range, descricao) VALUES (?, ?, ?, ?)',
+      [id, ip_address || null, ip_range || null, descricao || ''],
+      function(err) {
+        if (err) {
+          res.status(500).json({ error: err.message });
+          return;
+        }
+        res.json({ 
+          id: this.lastID,
+          message: 'IP adicionado à localidade com sucesso!' 
+        });
+      }
+    );
+  });
+});
+
+// Remover IP da localidade (protegido)
+app.delete('/api/localidades/:id/ips/:ip_id', authenticateToken, (req, res) => {
+  const { id, ip_id } = req.params;
+
+  db.run('DELETE FROM localidade_ips WHERE id = ? AND localidade_id = ?', [ip_id, id], function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    if (this.changes === 0) {
+      res.status(404).json({ error: 'IP não encontrado na localidade' });
+      return;
+    }
+    res.json({ message: 'IP removido da localidade com sucesso!' });
+  });
+});
+
+// Associar playlist à localidade (protegido)
+app.post('/api/localidades/:id/playlists', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  const { playlist_id, prioridade } = req.body;
+
+  if (!playlist_id) {
+    return res.status(400).json({ error: 'ID da playlist é obrigatório' });
+  }
+
+  // Verificar se a playlist existe
+  db.get('SELECT id FROM playlists WHERE id = ?', [playlist_id], (err, playlist) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    if (!playlist) {
+      res.status(404).json({ error: 'Playlist não encontrada' });
+      return;
+    }
+
+    // Verificar se já existe associação
+    db.get('SELECT id FROM localidade_playlists WHERE localidade_id = ? AND playlist_id = ?', [id, playlist_id], (err, existing) => {
+      if (err) {
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      if (existing) {
+        res.status(400).json({ error: 'Playlist já está associada a esta localidade' });
+        return;
+      }
+
+      db.run(
+        'INSERT INTO localidade_playlists (localidade_id, playlist_id, prioridade) VALUES (?, ?, ?)',
+        [id, playlist_id, prioridade || 1],
+        function(err) {
+          if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+          }
+          res.json({ message: 'Playlist associada à localidade com sucesso!' });
+        }
+      );
+    });
+  });
+});
+
+// Remover playlist da localidade (protegido)
+app.delete('/api/localidades/:id/playlists/:playlist_id', authenticateToken, (req, res) => {
+  const { id, playlist_id } = req.params;
+
+  db.run('DELETE FROM localidade_playlists WHERE localidade_id = ? AND playlist_id = ?', [id, playlist_id], function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    if (this.changes === 0) {
+      res.status(404).json({ error: 'Associação não encontrada' });
+      return;
+    }
+    res.json({ message: 'Playlist removida da localidade com sucesso!' });
+  });
+});
+
+// Listar playlists de uma localidade (protegido)
+app.get('/api/localidades/:id/playlists', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  
+  db.all(`
+    SELECT p.*, lp.prioridade, u.nome as criado_por_nome,
+           (SELECT COUNT(*) FROM playlist_videos pv WHERE pv.playlist_id = p.id) as total_videos
+    FROM playlists p
+    INNER JOIN localidade_playlists lp ON p.id = lp.playlist_id
+    LEFT JOIN usuarios u ON p.criado_por = u.id
+    WHERE lp.localidade_id = ?
+    ORDER BY lp.prioridade ASC, p.nome ASC
+  `, [id], (err, playlists) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json(playlists);
+  });
+});
+
+// ===== ROTAS DE VÍDEOS INDIVIDUAIS POR LOCALIDADE =====
+
+// Associar vídeo individual à localidade (protegido)
+app.post('/api/localidades/:id/videos', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  const { video_id, prioridade } = req.body;
+
+  console.log(`📹 Tentando associar vídeo ${video_id} à localidade ${id} com prioridade ${prioridade}`);
+
+  if (!video_id) {
+    return res.status(400).json({ error: 'ID do vídeo é obrigatório' });
+  }
+
+  // Verificar se o vídeo existe
+  db.get('SELECT id, titulo FROM videos WHERE id = ?', [video_id], (err, video) => {
+    if (err) {
+      console.error('❌ Erro ao buscar vídeo:', err);
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    if (!video) {
+      console.error(`❌ Vídeo ${video_id} não encontrado`);
+      res.status(404).json({ error: 'Vídeo não encontrado' });
+      return;
+    }
+
+    console.log(`✅ Vídeo encontrado: "${video.titulo}"`);
+
+    // Verificar se já existe associação
+    db.get('SELECT id FROM localidade_videos WHERE localidade_id = ? AND video_id = ?', [id, video_id], (err, existing) => {
+      if (err) {
+        console.error('❌ Erro ao verificar associação existente:', err);
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      if (existing) {
+        console.log(`⚠️ Vídeo ${video_id} já está associado à localidade ${id}`);
+        // Em vez de erro, atualizar a prioridade
+        db.run(
+          'UPDATE localidade_videos SET prioridade = ? WHERE localidade_id = ? AND video_id = ?',
+          [prioridade || 1, id, video_id],
+          function(err) {
+            if (err) {
+              console.error('❌ Erro ao atualizar prioridade:', err);
+              res.status(500).json({ error: err.message });
+              return;
+            }
+            console.log(`✅ Prioridade do vídeo ${video_id} atualizada para ${prioridade || 1}`);
+            res.json({ message: 'Vídeo já estava associado - prioridade atualizada com sucesso!' });
+          }
+        );
+        return;
+      }
+
+      console.log(`🔗 Criando nova associação...`);
+      db.run(
+        'INSERT INTO localidade_videos (localidade_id, video_id, prioridade) VALUES (?, ?, ?)',
+        [id, video_id, prioridade || 1],
+        function(err) {
+          if (err) {
+            console.error('❌ Erro ao criar associação:', err);
+            res.status(500).json({ error: err.message });
+            return;
+          }
+          console.log(`✅ Vídeo ${video_id} associado à localidade ${id} com sucesso!`);
+          res.json({ message: 'Vídeo associado à localidade com sucesso!' });
+        }
+      );
+    });
+  });
+});
+
+// Remover vídeo da localidade (protegido)
+app.delete('/api/localidades/:id/videos/:video_id', authenticateToken, (req, res) => {
+  const { id, video_id } = req.params;
+
+  db.run('DELETE FROM localidade_videos WHERE localidade_id = ? AND video_id = ?', [id, video_id], function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    if (this.changes === 0) {
+      res.status(404).json({ error: 'Associação não encontrada' });
+      return;
+    }
+    res.json({ message: 'Vídeo removido da localidade com sucesso!' });
+  });
+});
+
+// Listar vídeos de uma localidade (protegido)
+app.get('/api/localidades/:id/videos', authenticateToken, (req, res) => {
+  const { id } = req.params;
+
+  db.all(`
+    SELECT v.*, lv.prioridade, lv.id as associacao_id
+    FROM videos v 
+    INNER JOIN localidade_videos lv ON v.id = lv.video_id 
+    WHERE lv.localidade_id = ? AND lv.ativo = 1
+    ORDER BY lv.prioridade DESC, v.ordem ASC
+  `, [id], (err, videos) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json(videos || []);
+  });
+});
+
+// ===== ROTAS DE IMAGENS INDIVIDUAIS POR LOCALIDADE =====
+
+// Associar imagem individual à localidade (protegido)
+app.post('/api/localidades/:id/imagens', authenticateToken, (req, res) => {
+  const { id } = req.params;
+  const { imagem_id, prioridade } = req.body;
+
+  console.log(`🖼️ Tentando associar imagem ${imagem_id} à localidade ${id} com prioridade ${prioridade}`);
+
+  if (!imagem_id) {
+    return res.status(400).json({ error: 'ID da imagem é obrigatório' });
+  }
+
+  // Verificar se a imagem existe
+  db.get('SELECT id, titulo FROM imagens_slideshow WHERE id = ?', [imagem_id], (err, imagem) => {
+    if (err) {
+      console.error('❌ Erro ao buscar imagem:', err);
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    if (!imagem) {
+      console.error(`❌ Imagem ${imagem_id} não encontrada`);
+      res.status(404).json({ error: 'Imagem não encontrada' });
+      return;
+    }
+
+    console.log(`✅ Imagem encontrada: "${imagem.titulo}"`);
+
+    // Verificar se já existe associação
+    db.get('SELECT id FROM localidade_imagens WHERE localidade_id = ? AND imagem_id = ?', [id, imagem_id], (err, existing) => {
+      if (err) {
+        console.error('❌ Erro ao verificar associação existente:', err);
+        res.status(500).json({ error: err.message });
+        return;
+      }
+      if (existing) {
+        console.log(`⚠️ Imagem ${imagem_id} já está associada à localidade ${id}`);
+        // Em vez de erro, atualizar a prioridade
+        db.run(
+          'UPDATE localidade_imagens SET prioridade = ? WHERE localidade_id = ? AND imagem_id = ?',
+          [prioridade || 1, id, imagem_id],
+          function(err) {
+            if (err) {
+              console.error('❌ Erro ao atualizar prioridade:', err);
+              res.status(500).json({ error: err.message });
+              return;
+            }
+            console.log(`✅ Prioridade da imagem ${imagem_id} atualizada para ${prioridade || 1}`);
+            res.json({ message: 'Imagem já estava associada - prioridade atualizada com sucesso!' });
+          }
+        );
+        return;
+      }
+
+      console.log(`🔗 Criando nova associação...`);
+      db.run(
+        'INSERT INTO localidade_imagens (localidade_id, imagem_id, prioridade) VALUES (?, ?, ?)',
+        [id, imagem_id, prioridade || 1],
+        function(err) {
+          if (err) {
+            console.error('❌ Erro ao criar associação:', err);
+            res.status(500).json({ error: err.message });
+            return;
+          }
+          console.log(`✅ Imagem ${imagem_id} associada à localidade ${id} com sucesso!`);
+          res.json({ message: 'Imagem associada à localidade com sucesso!' });
+        }
+      );
+    });
+  });
+});
+
+// Remover imagem da localidade (protegido)
+app.delete('/api/localidades/:id/imagens/:imagem_id', authenticateToken, (req, res) => {
+  const { id, imagem_id } = req.params;
+
+  db.run('DELETE FROM localidade_imagens WHERE localidade_id = ? AND imagem_id = ?', [id, imagem_id], function(err) {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    if (this.changes === 0) {
+      res.status(404).json({ error: 'Associação não encontrada' });
+      return;
+    }
+    res.json({ message: 'Imagem removida da localidade com sucesso!' });
+  });
+});
+
+// Listar imagens de uma localidade (protegido)
+app.get('/api/localidades/:id/imagens', authenticateToken, (req, res) => {
+  const { id } = req.params;
+
+  db.all(`
+    SELECT i.*, li.prioridade, li.id as associacao_id
+    FROM imagens_slideshow i 
+    INNER JOIN localidade_imagens li ON i.id = li.imagem_id 
+    WHERE li.localidade_id = ? AND li.ativo = 1
+    ORDER BY li.prioridade DESC, i.ordem ASC
+  `, [id], (err, imagens) => {
+    if (err) {
+      res.status(500).json({ error: err.message });
+      return;
+    }
+    res.json(imagens || []);
+  });
+});
+
 // Rota de teste
 app.get('/api/test', (req, res) => {
   res.json({ message: 'API TV Saúde funcionando!', timestamp: new Date().toISOString() });
@@ -1360,3 +2424,5 @@ process.on('SIGINT', () => {
     process.exit(0);
   });
 });
+
+ 

@@ -1,10 +1,14 @@
-import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import axios from 'axios';
 import YouTube from 'react-youtube';
 import { API_BASE_URL, getUploadsUrl, getImagesUrl } from './config/api';
 import LogoDitis from './components/LogoDitis';
+import AvisosInterativos from './components/AvisosInterativos';
+import AvisosSincronizados from './components/AvisosSincronizados';
+import audioManager from './utils/audioManager';
 
 function App() {
+  // Estados principais
   const [videos, setVideos] = useState([]);
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -18,40 +22,70 @@ function App() {
   const [images, setImages] = useState([]);
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [showImageSlideshow, setShowImageSlideshow] = useState(false);
+  
+  // Estados para controle de transição melhorado
+  const [videoErrorCount, setVideoErrorCount] = useState(0);
+  const [transitionTimer, setTransitionTimer] = useState(null);
+  const [videoStartTime, setVideoStartTime] = useState(null);
+  const [forceTransition, setForceTransition] = useState(0);
+  const [userInteracted, setUserInteracted] = useState(true); // Iniciar como true para permitir autoplay
+  const [showInteractionOverlay, setShowInteractionOverlay] = useState(false);
+  
   const videoRef = useRef(null);
   const youtubeRef = useRef(null);
+  const maxVideoErrors = 3;
+  const MAX_VIDEO_DURATION = 300000; // 5 minutos máximo por vídeo
 
   // Atualizar relógio a cada segundo
   useEffect(() => {
     const timer = setInterval(() => {
       setCurrentTime(new Date());
     }, 1000);
-
     return () => clearInterval(timer);
   }, []);
 
-  // Buscar vídeos da API (agora usando playlist ativa)
-  const fetchVideos = async (isInitialLoad = false) => {
+  // Buscar vídeos da API com lógica melhorada
+  const fetchVideos = useCallback(async (isInitialLoad = false) => {
     try {
-      // Só mostrar loading na primeira carga
       if (isInitialLoad) {
         setLoading(true);
       }
       
-      const response = await axios.get(`${API_BASE_URL}/playlists/ativa/videos`);
+      console.log('🔄 Buscando vídeos...');
+      
+      // Tentar buscar conteúdo por localidade primeiro
+      let response;
+      try {
+        response = await axios.get(`${API_BASE_URL}/localidades/conteudo`);
+        console.log('📍 Resposta da API de localidades:', response.data);
+      } catch (localidadeError) {
+        console.log('⚠️ Erro na API de localidades, tentando fallback...');
+        response = await axios.get(`${API_BASE_URL}/playlists/ativa/videos`);
+        console.log('📋 Resposta da API de playlist ativa:', response.data);
+      }
+      
       if (response.data && response.data.videos && response.data.videos.length > 0) {
-        setVideos(response.data.videos);
+        const newVideos = response.data.videos;
+        console.log(`✅ ${newVideos.length} vídeos encontrados:`, newVideos.map(v => v.titulo));
+        
+        setVideos(newVideos);
         setPlaylist(response.data.playlist);
         setError(null);
+        
+        // Se é a primeira carga e há vídeos, iniciar do primeiro
+        if (isInitialLoad && newVideos.length > 0) {
+          setCurrentVideoIndex(0);
+          console.log('🎬 Iniciando com o primeiro vídeo:', newVideos[0].titulo);
+        }
+        
       } else {
-        // Só mostrar erro se não há vídeos carregados anteriormente
+        console.log('⚠️ Nenhum vídeo encontrado na resposta');
         if (videos.length === 0) {
           setError('Nenhum vídeo encontrado');
         }
       }
     } catch (err) {
-      console.error('Erro ao buscar vídeos:', err);
-      // Só mostrar erro se não há vídeos carregados anteriormente
+      console.error('❌ Erro ao buscar vídeos:', err);
       if (videos.length === 0) {
         setError('Erro ao conectar com o servidor');
       }
@@ -60,17 +94,15 @@ function App() {
         setLoading(false);
       }
     }
-  };
+  }, [videos.length]);
 
-  // Buscar imagens da API
-  const fetchImages = async () => {
+  // Buscar imagens
+  const fetchImages = useCallback(async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/imagens`);
       if (response.data && response.data.length > 0) {
         setImages(response.data);
-        if (response.data.length > 0 && !showImageSlideshow) {
-          setShowImageSlideshow(true);
-        }
+        setShowImageSlideshow(true);
       } else {
         setImages([]);
         setShowImageSlideshow(false);
@@ -79,167 +111,453 @@ function App() {
       console.error('Erro ao buscar imagens:', err);
       setImages([]);
     }
-  };
+  }, []);
 
-  // Verificar comandos do controle remoto
-  const checkRemoteCommands = async () => {
-    try {
-      const response = await axios.get(`${API_BASE_URL}/controle/ultimo`);
-      const command = response.data;
-      
-      if (command && command.id !== lastCommandId && command.comando) {
-        setLastCommandId(command.id);
-        // Evitar executar comandos problemáticos
-        const comandosProblematicos = ['play', 'background_music_off', 'background_music_on'];
-        const isComandoProblematico = comandosProblematicos.includes(command.comando) && command.parametros === null;
-        
-        if (!isComandoProblematico) {
-          executeCommand(command.comando, command.parametros);
-        }
-      }
-    } catch (err) {
-      // Reduzir logs de erro para comandos
-      if (err.response?.status !== 404) {
-        console.error('Erro ao verificar comandos:', err);
-      }
-    }
-  };
-
-  // Obter vídeo atual
-  const getCurrentVideo = () => {
-    return videos[currentVideoIndex];
-  };
-
-  // Executar comando do controle remoto
-  const executeCommand = (comando, parametros) => {
-    // PROTEÇÃO ANTI-LOOP: Bloquear comandos problemáticos que causam loops infinitos
-    const comandosProblematicos = ['play', 'background_music_off', 'background_music_on', 'refresh'];
-    const isComandoProblematico = comandosProblematicos.includes(comando) && parametros === null;
-    
-    // PROTEÇÃO ESPECIAL: Nunca executar comando 'refresh' - causa loop infinito
-    if (comando === 'refresh') {
-      console.warn('🚨 BLOQUEADO: Comando "refresh" ignorado para evitar loop infinito');
-      return;
-    }
-    
-    if (!isComandoProblematico) {
-      console.log('Executando comando:', comando, parametros);
-    }
-    
-    switch (comando) {
-      case 'play':
-        setIsPlaying(true);
-        if (getCurrentVideo()?.tipo === 'youtube' && youtubeRef.current) {
-          youtubeRef.current.playVideo();
-        } else if (videoRef.current) {
-          videoRef.current.play();
-        }
-        break;
-        
-      case 'pause':
-        setIsPlaying(false);
-        if (getCurrentVideo()?.tipo === 'youtube' && youtubeRef.current) {
-          youtubeRef.current.pauseVideo();
-        } else if (videoRef.current) {
-          videoRef.current.pause();
-        }
-        break;
-        
-      case 'next':
-        nextVideo();
-        break;
-        
-      case 'previous':
-        previousVideo();
-        break;
-        
-      case 'restart':
-        if (getCurrentVideo()?.tipo === 'youtube' && youtubeRef.current) {
-          youtubeRef.current.seekTo(0);
-        } else if (videoRef.current) {
-          videoRef.current.currentTime = 0;
-        }
-        break;
-        
-      case 'reload_playlist':
-        fetchVideos(false);
-        break;
-        
-      case 'refresh':
-        // NUNCA EXECUTAR - já bloqueado acima
-        console.warn('🚨 Comando refresh bloqueado permanentemente');
-        break;
-        
-      case 'emergency_stop':
-        setIsPlaying(false);
-        if (getCurrentVideo()?.tipo === 'youtube' && youtubeRef.current) {
-          youtubeRef.current.pauseVideo();
-        } else if (videoRef.current) {
-          videoRef.current.pause();
-        }
-        break;
-        
-      case 'volume_up':
-        if (videoRef.current) {
-          videoRef.current.volume = Math.min(1, videoRef.current.volume + 0.1);
-        }
-        break;
-        
-      case 'volume_down':
-        if (videoRef.current) {
-          videoRef.current.volume = Math.max(0, videoRef.current.volume - 0.1);
-        }
-        break;
-        
-      case 'mute':
-        if (videoRef.current) {
-          videoRef.current.muted = !videoRef.current.muted;
-        }
-        break;
-        
-      default:
-        console.warn('⚠️ Comando desconhecido:', comando);
-        break;
-    }
-  };
-
-  // Buscar mensagens ativas
-  const fetchMessages = async () => {
+  // Buscar mensagens
+  const fetchMessages = useCallback(async () => {
     try {
       const response = await axios.get(`${API_BASE_URL}/mensagens`);
       setMessages(response.data || []);
     } catch (err) {
       console.error('Erro ao buscar mensagens:', err);
     }
+  }, []);
+
+  // Obter vídeo atual
+  const getCurrentVideo = useCallback(() => {
+    return videos[currentVideoIndex];
+  }, [videos, currentVideoIndex]);
+
+  // Avançar para próximo vídeo (forçado)
+  const forceNextVideo = useCallback(() => {
+    if (videos.length === 0) return;
+    
+    console.log(`➡️ FORÇANDO próximo vídeo (atual: ${currentVideoIndex}/${videos.length})`);
+    
+    // Limpar timer de transição anterior
+    if (transitionTimer) {
+      clearTimeout(transitionTimer);
+      setTransitionTimer(null);
+    }
+    
+    // Calcular próximo índice
+    const nextIndex = currentVideoIndex >= videos.length - 1 ? 0 : currentVideoIndex + 1;
+    
+    console.log(`🎬 Mudando de vídeo ${currentVideoIndex} para ${nextIndex}`);
+    console.log(`📺 Próximo vídeo: ${videos[nextIndex]?.titulo}`);
+    
+    setCurrentVideoIndex(nextIndex);
+    setVideoErrorCount(0);
+    setVideoStartTime(Date.now());
+    setForceTransition(prev => prev + 1);
+  }, [videos, currentVideoIndex, transitionTimer]);
+
+  // Voltar para vídeo anterior (forçado)
+  const forcePreviousVideo = useCallback(() => {
+    if (videos.length === 0) return;
+    
+    console.log(`⬅️ FORÇANDO vídeo anterior (atual: ${currentVideoIndex}/${videos.length})`);
+    
+    // Limpar timer de transição anterior
+    if (transitionTimer) {
+      clearTimeout(transitionTimer);
+      setTransitionTimer(null);
+    }
+    
+    // Calcular índice anterior
+    const prevIndex = currentVideoIndex <= 0 ? videos.length - 1 : currentVideoIndex - 1;
+    
+    console.log(`🎬 Mudando de vídeo ${currentVideoIndex} para ${prevIndex}`);
+    console.log(`📺 Vídeo anterior: ${videos[prevIndex]?.titulo}`);
+    
+    setCurrentVideoIndex(prevIndex);
+    setVideoErrorCount(0);
+    setVideoStartTime(Date.now());
+    setForceTransition(prev => prev + 1);
+  }, [videos, currentVideoIndex, transitionTimer]);
+
+  // Função auxiliar para reprodução segura de vídeo
+  const safePlay = useCallback(async (videoElement) => {
+    if (!videoElement) return false;
+    
+    try {
+      await videoElement.play();
+      return true;
+    } catch (err) {
+      if (err.name === 'NotAllowedError') {
+        console.warn('⚠️ Autoplay bloqueado - mostrando overlay de interação');
+        setShowInteractionOverlay(true);
+        setUserInteracted(false);
+        return false;
+      }
+      console.error('❌ Erro ao reproduzir vídeo:', err);
+      return false;
+    }
+  }, [userInteracted, showInteractionOverlay]);
+
+  // Executar comando do controle remoto
+  const executeCommand = useCallback((comando, parametros) => {
+    console.log('🎮 Executando comando:', comando, parametros);
+    
+    const currentVideo = videos[currentVideoIndex];
+    
+    switch (comando) {
+      case 'play':
+        console.log('▶️ Comando PLAY recebido');
+        setIsPlaying(true);
+        
+        // Tentar reproduzir o vídeo atual
+        setTimeout(() => {
+          if (currentVideo?.tipo === 'youtube' && youtubeRef.current) {
+            console.log('▶️ Reproduzindo vídeo YouTube');
+            youtubeRef.current.playVideo();
+          } else if (videoRef.current) {
+            console.log('▶️ Reproduzindo vídeo local');
+            safePlay(videoRef.current);
+          } else {
+            console.warn('⚠️ Nenhuma referência de vídeo disponível');
+          }
+        }, 100);
+        break;
+        
+      case 'pause':
+        console.log('⏸️ Comando PAUSE recebido');
+        setIsPlaying(false);
+        
+        if (currentVideo?.tipo === 'youtube' && youtubeRef.current) {
+          console.log('⏸️ Pausando vídeo YouTube');
+          youtubeRef.current.pauseVideo();
+        } else if (videoRef.current) {
+          console.log('⏸️ Pausando vídeo local');
+          videoRef.current.pause();
+        }
+        break;
+        
+      case 'next':
+        console.log('⏭️ Comando NEXT recebido');
+        forceNextVideo();
+        break;
+        
+      case 'previous':
+        console.log('⏮️ Comando PREVIOUS recebido');
+        forcePreviousVideo();
+        break;
+        
+      case 'restart':
+        console.log('🔄 Comando RESTART recebido');
+        // Reiniciar o vídeo atual do início
+        if (currentVideo?.tipo === 'youtube' && youtubeRef.current) {
+          console.log('🔄 Reiniciando vídeo YouTube');
+          youtubeRef.current.seekTo(0);
+          youtubeRef.current.playVideo();
+        } else if (videoRef.current) {
+          console.log('🔄 Reiniciando vídeo local');
+          videoRef.current.currentTime = 0;
+          safePlay(videoRef.current);
+        }
+        setIsPlaying(true);
+        break;
+        
+      case 'volume_up':
+        console.log('🔊 Comando VOLUME_UP recebido');
+        if (currentVideo?.tipo === 'youtube' && youtubeRef.current) {
+          const currentVolume = youtubeRef.current.getVolume();
+          const newVolume = Math.min(100, currentVolume + 10);
+          youtubeRef.current.setVolume(newVolume);
+          console.log(`🔊 Volume YouTube: ${currentVolume} → ${newVolume}`);
+        } else if (videoRef.current) {
+          const currentVolume = videoRef.current.volume;
+          const newVolume = Math.min(1, currentVolume + 0.1);
+          videoRef.current.volume = newVolume;
+          console.log(`🔊 Volume local: ${(currentVolume * 100).toFixed(0)}% → ${(newVolume * 100).toFixed(0)}%`);
+        }
+        break;
+        
+      case 'volume_down':
+        console.log('🔉 Comando VOLUME_DOWN recebido');
+        if (currentVideo?.tipo === 'youtube' && youtubeRef.current) {
+          const currentVolume = youtubeRef.current.getVolume();
+          const newVolume = Math.max(0, currentVolume - 10);
+          youtubeRef.current.setVolume(newVolume);
+          console.log(`🔉 Volume YouTube: ${currentVolume} → ${newVolume}`);
+        } else if (videoRef.current) {
+          const currentVolume = videoRef.current.volume;
+          const newVolume = Math.max(0, currentVolume - 0.1);
+          videoRef.current.volume = newVolume;
+          console.log(`🔉 Volume local: ${(currentVolume * 100).toFixed(0)}% → ${(newVolume * 100).toFixed(0)}%`);
+        }
+        break;
+        
+      case 'mute':
+        console.log('🔇 Comando MUTE recebido');
+        if (currentVideo?.tipo === 'youtube' && youtubeRef.current) {
+          const isMuted = youtubeRef.current.isMuted();
+          if (isMuted) {
+            youtubeRef.current.unMute();
+            console.log('🔊 YouTube desmutado');
+          } else {
+            youtubeRef.current.mute();
+            console.log('🔇 YouTube mutado');
+          }
+        } else if (videoRef.current) {
+          videoRef.current.muted = !videoRef.current.muted;
+          console.log(`🔇 Vídeo local ${videoRef.current.muted ? 'mutado' : 'desmutado'}`);
+        }
+        break;
+        
+      case 'refresh':
+        console.log('🔃 Comando REFRESH recebido');
+        // Recarregar a página para atualizar completamente a TV
+        window.location.reload();
+        break;
+        
+      case 'reload_playlist':
+        console.log('🔄 Comando RELOAD_PLAYLIST recebido');
+        fetchVideos(false);
+        break;
+        
+      default:
+        console.warn('⚠️ Comando desconhecido:', comando);
+        break;
+    }
+  }, [videos, currentVideoIndex, forceNextVideo, forcePreviousVideo, fetchVideos]);
+
+  // Verificar comandos do controle remoto
+  const checkRemoteCommands = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/controle/ultimo`);
+      const command = response.data;
+      
+      if (command && command.id !== lastCommandId && command.comando) {
+        setLastCommandId(command.id);
+        executeCommand(command.comando, command.parametros);
+      }
+    } catch (err) {
+      if (err.response?.status !== 404) {
+        console.error('Erro ao verificar comandos:', err);
+      }
+    }
+  }, [lastCommandId, executeCommand]);
+
+  // Timer de segurança para transição automática
+  const setupTransitionTimer = useCallback(() => {
+    // Limpar timer anterior
+    if (transitionTimer) {
+      clearTimeout(transitionTimer);
+    }
+    
+    // Configurar novo timer apenas se há múltiplos vídeos
+    if (videos.length > 1) {
+      const timer = setTimeout(() => {
+        console.log('⏰ TIMEOUT: Forçando transição após tempo limite');
+        forceNextVideo();
+      }, MAX_VIDEO_DURATION);
+      
+      setTransitionTimer(timer);
+      console.log(`⏱️ Timer de segurança configurado para ${MAX_VIDEO_DURATION/1000}s`);
+    }
+  }, [videos.length, transitionTimer, forceNextVideo]);
+
+  // Quando o vídeo terminar
+  const handleVideoEnd = useCallback(() => {
+    const currentVideo = getCurrentVideo();
+    console.log(`🏁 Vídeo terminou: ${currentVideo?.titulo}`);
+    console.log(`📊 Total de vídeos: ${videos.length}, Índice atual: ${currentVideoIndex}`);
+    
+    // Limpar timer de transição
+    if (transitionTimer) {
+      clearTimeout(transitionTimer);
+      setTransitionTimer(null);
+    }
+    
+    if (videos.length <= 1) {
+      // Se há apenas 1 vídeo ou menos, reiniciar o mesmo
+      console.log('🔄 Apenas 1 vídeo - reiniciando...');
+      setTimeout(() => {
+        if (currentVideo?.tipo === 'youtube' && youtubeRef.current) {
+          youtubeRef.current.seekTo(0);
+          youtubeRef.current.playVideo();
+        } else if (videoRef.current) {
+          videoRef.current.currentTime = 0;
+          safePlay(videoRef.current);
+        }
+      }, 1000);
+    } else {
+      // Múltiplos vídeos - avançar para próximo
+      console.log('➡️ Múltiplos vídeos - avançando para próximo');
+      setTimeout(() => {
+        forceNextVideo();
+      }, 500);
+    }
+  }, [videos, currentVideoIndex, getCurrentVideo, transitionTimer, forceNextVideo]);
+
+  // Quando o vídeo carregar
+  const handleVideoLoad = useCallback(() => {
+    const currentVideo = getCurrentVideo();
+    console.log(`✅ Vídeo carregado: ${currentVideo?.titulo}`);
+    
+    setVideoErrorCount(0);
+    setVideoStartTime(Date.now());
+    
+    // Configurar áudio para vídeos locais
+    if (videoRef.current) {
+      videoRef.current.volume = 1.0; // Volume máximo
+      videoRef.current.muted = false; // Garantir que não está mudo
+    }
+    
+    // Configurar timer de segurança
+    setupTransitionTimer();
+    
+    if (isPlaying && videoRef.current) {
+      safePlay(videoRef.current).catch(err => {
+        console.error('❌ Erro ao reproduzir após carregamento:', err);
+        handleVideoError(err);
+      });
+    }
+  }, [getCurrentVideo, isPlaying, setupTransitionTimer]);
+
+  // Tratar erros de vídeo
+  const handleVideoError = useCallback((error) => {
+    const currentVideo = getCurrentVideo();
+    console.error(`❌ Erro no vídeo: ${currentVideo?.titulo}`, error);
+    
+    setVideoErrorCount(prev => {
+      const newCount = prev + 1;
+      console.log(`📊 Contador de erros: ${newCount}/${maxVideoErrors}`);
+      
+      if (newCount >= maxVideoErrors) {
+        console.log('⚠️ Máximo de erros atingido - recarregando lista de vídeos');
+        fetchVideos(false);
+        return 0;
+      }
+      
+      // Se há múltiplos vídeos, tentar próximo
+      if (videos.length > 1) {
+        console.log('➡️ Erro no vídeo - tentando próximo');
+        setTimeout(() => {
+          forceNextVideo();
+        }, 2000);
+      } else {
+        // Vídeo único - tentar recarregar
+        console.log('🔄 Erro em vídeo único - tentando recarregar');
+        setTimeout(() => {
+          setForceTransition(prev => prev + 1);
+        }, 3000);
+      }
+      
+      return newCount;
+    });
+  }, [getCurrentVideo, videos.length, forceNextVideo, fetchVideos]);
+
+  // Eventos do YouTube
+  const onYouTubeReady = useCallback((event) => {
+    youtubeRef.current = event.target;
+    console.log('✅ YouTube player pronto');
+    
+    // Configurar volume inicial
+    event.target.setVolume(100); // Volume máximo
+    event.target.unMute(); // Garantir que não está mudo
+    
+    setVideoStartTime(Date.now());
+    setupTransitionTimer();
+    
+    if (isPlaying) {
+      event.target.playVideo();
+    }
+  }, [isPlaying, setupTransitionTimer]);
+
+  const onYouTubeEnd = useCallback(() => {
+    console.log('🏁 Vídeo YouTube terminou');
+    handleVideoEnd();
+  }, [handleVideoEnd]);
+
+  const onYouTubeError = useCallback((error) => {
+    console.error('❌ Erro no YouTube:', error);
+    handleVideoError(error);
+  }, [handleVideoError]);
+
+  // Configurações do YouTube
+  const youtubeOpts = {
+    height: '100%',
+    width: '100%',
+    playerVars: {
+      autoplay: 1,
+      controls: 0,
+      disablekb: 1,
+      fs: 0,
+      iv_load_policy: 3,
+      modestbranding: 1,
+      rel: 0,
+      showinfo: 0,
+      mute: 0, // Não mudo - com som
+      start: 0,
+    },
   };
 
-  // Carregar vídeos ao iniciar
+  // Extrair ID do YouTube
+  const extractYouTubeId = useCallback((url) => {
+    if (!url) return null;
+    const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
+    const match = url.match(regex);
+    return match ? match[1] : null;
+  }, []);
+
+  // Effect para mudança de vídeo
   useEffect(() => {
-    fetchVideos(true); // Primeira carga com loading
+    if (videos.length > 0 && getCurrentVideo()) {
+      const currentVideo = getCurrentVideo();
+      console.log(`🎬 MUDANÇA DE VÍDEO: ${currentVideoIndex + 1}/${videos.length} - ${currentVideo.titulo}`);
+      
+      // Limpar timer anterior
+      if (transitionTimer) {
+        clearTimeout(transitionTimer);
+        setTransitionTimer(null);
+      }
+      
+      // Resetar estados
+      setVideoErrorCount(0);
+      setVideoStartTime(Date.now());
+      
+      // Para vídeos locais, configurar timer de segurança
+      if (currentVideo.tipo !== 'youtube') {
+        setupTransitionTimer();
+      }
+    }
+  }, [currentVideoIndex, videos, forceTransition]);
+
+  // Inicialização
+  useEffect(() => {
+    console.log('🚀 Inicializando aplicação TV Saúde');
+    
+    fetchVideos(true);
     fetchMessages();
-    fetchImages(); // Buscar imagens também
+    fetchImages();
     
-    // Recarregar vídeos a cada 10 segundos para atualização mais rápida (sem loading)
-    const videoInterval = setInterval(() => fetchVideos(false), 10 * 1000);
+    // Inicializar áudio
+    audioManager.initialize().then(() => {
+      console.log('🎵 AudioManager inicializado');
+    }).catch(err => {
+      console.error('❌ Erro ao inicializar AudioManager:', err);
+    });
     
-    // Verificar comandos a cada 2 segundos
+    // Intervalos
+    const videoInterval = setInterval(() => fetchVideos(false), 10000);
     const commandInterval = setInterval(checkRemoteCommands, 2000);
-    
-    // Buscar mensagens a cada 10 segundos
-    const messagesInterval = setInterval(fetchMessages, 10 * 1000);
-    
-    // Buscar imagens a cada 30 segundos
-    const imagesInterval = setInterval(fetchImages, 30 * 1000);
+    const messagesInterval = setInterval(fetchMessages, 10000);
+    const imagesInterval = setInterval(fetchImages, 30000);
     
     return () => {
       clearInterval(videoInterval);
       clearInterval(commandInterval);
       clearInterval(messagesInterval);
       clearInterval(imagesInterval);
+      if (transitionTimer) {
+        clearTimeout(transitionTimer);
+      }
     };
   }, []);
 
-  // Rotacionar mensagens a cada 5 segundos
+  // Rotação de mensagens
   useEffect(() => {
     if (messages.length > 1) {
       const messageRotation = setInterval(() => {
@@ -252,7 +570,7 @@ function App() {
     }
   }, [messages.length]);
 
-  // Rotacionar imagens baseado na duração configurada
+  // Rotação de imagens
   useEffect(() => {
     if (images.length > 1 && showImageSlideshow) {
       const currentImage = images[currentImageIndex];
@@ -267,119 +585,6 @@ function App() {
       return () => clearInterval(imageRotation);
     }
   }, [images.length, currentImageIndex, showImageSlideshow]);
-
-  // Executar checkRemoteCommands apenas uma vez na inicialização
-  useEffect(() => {
-    // Executar uma verificação inicial de comandos
-    checkRemoteCommands();
-  }, []); // Array vazio para executar apenas uma vez
-
-  // Avançar para próximo vídeo
-  const nextVideo = () => {
-    if (videos.length > 0) {
-      setCurrentVideoIndex((prevIndex) => 
-        prevIndex === videos.length - 1 ? 0 : prevIndex + 1
-      );
-    }
-  };
-
-  // Voltar para vídeo anterior
-  const previousVideo = () => {
-    if (videos.length > 0) {
-      setCurrentVideoIndex((prevIndex) => 
-        prevIndex === 0 ? videos.length - 1 : prevIndex - 1
-      );
-    }
-  };
-
-  // Quando o vídeo terminar, avançar para o próximo
-  const handleVideoEnd = () => {
-    nextVideo();
-  };
-
-  // Quando o vídeo carregar, reproduzir automaticamente
-  const handleVideoLoad = () => {
-    if (isPlaying && videoRef.current) {
-      videoRef.current.play().catch(console.error);
-    }
-  };
-
-  // Contador de erros para evitar loop infinito
-  const [videoErrorCount, setVideoErrorCount] = useState(0);
-  const maxVideoErrors = 3; // Máximo de erros antes de parar
-
-  // Função para lidar com erros de vídeo com proteção anti-loop
-  const handleVideoError = (e) => {
-    console.error('Erro no vídeo:', e);
-    
-    // Incrementar contador de erros
-    setVideoErrorCount(prev => {
-      const newCount = prev + 1;
-      
-      // Se atingiu o máximo de erros, parar de tentar
-      if (newCount >= maxVideoErrors) {
-        console.warn('🚨 Muitos erros de vídeo consecutivos. Parando para evitar loop infinito.');
-        setError('Erro ao reproduzir vídeos. Verifique os arquivos de mídia.');
-        return newCount;
-      }
-      
-      // Caso contrário, tentar próximo vídeo após um delay
-      setTimeout(() => {
-        nextVideo();
-      }, 1000); // Delay de 1 segundo para evitar loop muito rápido
-      
-      return newCount;
-    });
-  };
-
-  // Resetar contador de erros quando vídeo carrega com sucesso
-  const handleVideoLoadSuccess = () => {
-    setVideoErrorCount(0); // Reset contador quando vídeo carrega
-    if (isPlaying && videoRef.current) {
-      videoRef.current.play().catch(console.error);
-    }
-  };
-
-  // Configurações do YouTube Player
-  const youtubeOpts = {
-    height: '100%',
-    width: '100%',
-    playerVars: {
-      autoplay: 1,
-      controls: 0,
-      disablekb: 1,
-      fs: 0,
-      iv_load_policy: 3,
-      modestbranding: 1,
-      rel: 0,
-      showinfo: 0,
-    },
-  };
-
-  // Eventos do YouTube Player
-  const onYouTubeReady = (event) => {
-    youtubeRef.current = event.target;
-    if (isPlaying) {
-      event.target.playVideo();
-    }
-  };
-
-  const onYouTubeEnd = () => {
-    nextVideo();
-  };
-
-  const onYouTubeError = (error) => {
-    console.error('Erro no YouTube:', error);
-    nextVideo();
-  };
-
-  // Extrair ID do YouTube da URL
-  const extractYouTubeId = (url) => {
-    if (!url) return null;
-    const regex = /(?:youtube\.com\/(?:[^\/]+\/.+\/|(?:v|e(?:mbed)?)\/|.*[?&]v=)|youtu\.be\/)([^"&?\/\s]{11})/;
-    const match = url.match(regex);
-    return match ? match[1] : null;
-  };
 
   // Formatação de data e hora
   const formatDateTime = (date) => {
@@ -399,7 +604,7 @@ function App() {
 
   const { time, date } = formatDateTime(currentTime);
 
-  // Função para obter ícone do tipo de mensagem
+  // Funções para mensagens
   const getMessageIcon = (tipo) => {
     switch (tipo) {
       case 'success': return '✅';
@@ -410,7 +615,6 @@ function App() {
     }
   };
 
-  // Função para obter cor do tipo de mensagem
   const getMessageColor = (tipo) => {
     switch (tipo) {
       case 'success': return 'bg-green-600/90';
@@ -437,84 +641,22 @@ function App() {
   // Tela de erro
   if (error || videos.length === 0) {
     return (
-      <>
-        <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-red-900 to-orange-900">
-          <div className="max-w-md p-8 mx-auto text-center">
-            <div className="mb-4 text-6xl">📺</div>
-            <h2 className="mb-4 text-3xl font-bold text-white">TV Saúde Guarapuava</h2>
-            <p className="mb-6 text-red-200">
-              {error || 'Nenhum vídeo disponível no momento'}
-            </p>
-            <div className="text-white">
-              <div className="text-4xl font-bold">{time}</div>
-              <div className="text-lg capitalize">{date}</div>
-            </div>
-            <p className="mt-4 text-sm text-red-300">
-              Verifique a conexão ou contate o administrador
-            </p>
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-red-900 to-orange-900">
+        <div className="max-w-md p-8 mx-auto text-center">
+          <div className="mb-4 text-6xl">📺</div>
+          <h2 className="mb-4 text-3xl font-bold text-white">TV Saúde Guarapuava</h2>
+          <p className="mb-6 text-red-200">
+            {error || 'Nenhum vídeo disponível no momento'}
+          </p>
+          <div className="text-white">
+            <div className="text-4xl font-bold">{time}</div>
+            <div className="text-lg capitalize">{date}</div>
           </div>
+          <p className="mt-4 text-sm text-red-300">
+            Verifique a conexão ou contate o administrador
+          </p>
         </div>
-
-        {/* Slideshow de Imagens */}
-        {showImageSlideshow && images.length > 0 && (
-          <div className="fixed overflow-hidden border rounded-lg shadow-2xl bottom-4 right-4 w-80 h-60 bg-black/90 border-white/20">
-            <div className="relative w-full h-full">
-              {/* Imagem Atual */}
-              <div className="w-full h-full">
-                <img
-                  src={getImagesUrl(images[currentImageIndex]?.arquivo)}
-                  alt={images[currentImageIndex]?.titulo}
-                  className="object-cover w-full h-full transition-opacity duration-1000"
-                  onError={(e) => {
-                    console.error('Erro ao carregar imagem:', e.target.src);
-                    e.target.style.display = 'none';
-                  }}
-                />
-              </div>
-
-              {/* Overlay com informações */}
-              <div className="absolute bottom-0 left-0 right-0 p-3 bg-gradient-to-t from-black/80 to-transparent">
-                <div className="text-white">
-                  <div className="mb-1 text-sm font-semibold truncate">
-                    {images[currentImageIndex]?.titulo}
-                  </div>
-                  {images[currentImageIndex]?.descricao && (
-                    <div className="text-xs text-white/80 line-clamp-2">
-                      {images[currentImageIndex]?.descricao}
-                    </div>
-                  )}
-                </div>
-                
-                {/* Indicadores de progresso */}
-                {images.length > 1 && (
-                  <div className="flex items-center justify-between mt-2">
-                    <div className="flex space-x-1">
-                      {images.map((_, index) => (
-                        <div
-                          key={index}
-                          className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
-                            index === currentImageIndex ? 'bg-white' : 'bg-white/40'
-                          }`}
-                        />
-                      ))}
-                    </div>
-                    <span className="text-xs text-white/70">
-                      {currentImageIndex + 1}/{images.length}
-                    </span>
-                  </div>
-                )}
-              </div>
-
-              {/* Ícone de galeria */}
-              <div className="absolute p-1 rounded-full top-2 right-2 bg-black/50">
-                <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-            </div>
-          </div>
-        )}
-      </>
+      </div>
     );
   }
 
@@ -543,6 +685,7 @@ function App() {
       {currentVideo.tipo === 'youtube' ? (
         <div className="w-full h-full">
           <YouTube
+            key={`youtube-${currentVideo.id}-${forceTransition}`}
             videoId={extractYouTubeId(currentVideo.url_youtube)}
             opts={youtubeOpts}
             onReady={onYouTubeReady}
@@ -555,12 +698,13 @@ function App() {
       ) : (
         <video
           ref={videoRef}
-          key={currentVideo.id}
+          key={`video-${currentVideo.id}-${forceTransition}`}
           className="object-cover w-full h-full"
           autoPlay={isPlaying}
-          muted
+          playsInline
+          volume={1.0}
           onEnded={handleVideoEnd}
-          onLoadedData={handleVideoLoadSuccess}
+          onLoadedData={handleVideoLoad}
           onError={handleVideoError}
         >
           <source 
@@ -622,7 +766,38 @@ function App() {
         </div>
       </div>
 
-      {/* Letreiro de Mensagens - Ticker na parte inferior */}
+      {/* Indicadores de status */}
+      <div className="absolute z-20 space-y-2 top-4 right-4">
+        <div className="px-3 py-1 rounded-full bg-green-600/80">
+          <div className="text-sm text-white">
+            ✅ Transição Corrigida
+          </div>
+        </div>
+        
+        {!isPlaying && (
+          <div className="px-3 py-1 rounded-full bg-yellow-500/80">
+            <div className="text-sm font-medium text-white">
+              ⏸️ Pausado
+            </div>
+          </div>
+        )}
+        
+        <div className="px-3 py-1 rounded-full bg-black/50">
+          <div className="text-sm text-white">
+            🔄 Controle Remoto Ativo
+          </div>
+        </div>
+
+        {messages.length > 0 && (
+          <div className="px-3 py-1 rounded-full bg-purple-600/80">
+            <div className="text-sm text-white">
+              📢 {messages.length} Mensagem{messages.length > 1 ? 's' : ''}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Letreiro de Mensagens */}
       {messages.length > 0 && (
         <div className="absolute bottom-0 left-0 right-0 z-30">
           <div className={`
@@ -652,7 +827,6 @@ function App() {
                   <span className="mr-8 text-sm text-white/90">
                     {messages[currentMessageIndex]?.conteudo}
                   </span>
-                  {/* Repetir o conteúdo para efeito contínuo */}
                   <span className="mr-8 text-sm font-bold text-white">
                     {messages[currentMessageIndex]?.titulo}
                   </span>
@@ -697,32 +871,37 @@ function App() {
         .animate-marquee {
           animation: marquee 20s linear infinite;
         }
+        .tv-header {
+          position: absolute;
+          top: 0;
+          left: 0;
+          right: 0;
+          z-index: 10;
+          background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+          padding: 1rem;
+        }
+        .video-overlay {
+          position: absolute;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          z-index: 10;
+          background: linear-gradient(to top, rgba(0,0,0,0.8), transparent);
+          padding: 2rem;
+        }
+        .spinner {
+          width: 40px;
+          height: 40px;
+          border: 4px solid #f3f3f3;
+          border-top: 4px solid #3498db;
+          border-radius: 50%;
+          animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
       `}</style>
-
-      {/* Indicadores de status */}
-      <div className="absolute z-20 space-y-2 top-4 right-4">
-        {!isPlaying && (
-          <div className="px-3 py-1 rounded-full bg-yellow-500/80">
-            <div className="text-sm font-medium text-white">
-              ⏸️ Pausado
-            </div>
-          </div>
-        )}
-        
-        <div className="px-3 py-1 rounded-full bg-black/50">
-          <div className="text-sm text-white">
-            🔄 Controle Remoto Ativo
-          </div>
-        </div>
-
-        {messages.length > 0 && (
-          <div className="px-3 py-1 rounded-full bg-purple-600/80">
-            <div className="text-sm text-white">
-              📢 {messages.length} Mensagem{messages.length > 1 ? 's' : ''}
-            </div>
-          </div>
-        )}
-      </div>
 
       {/* Slideshow de Imagens */}
       {showImageSlideshow && images.length > 0 && (
@@ -780,6 +959,33 @@ function App() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* 🎯 Sistema de Avisos Interativos */}
+      <AvisosInterativos />
+
+      {/* 🔄 Sistema de Avisos Sincronizados */}
+      <AvisosSincronizados />
+
+      {/* Overlay de interação apenas quando necessário */}
+      {showInteractionOverlay && (
+        <div 
+          className="fixed inset-0 bg-black bg-opacity-80 flex items-center justify-center z-50 cursor-pointer"
+          onClick={() => {
+            setShowInteractionOverlay(false);
+            setUserInteracted(true);
+            // Tentar reproduzir novamente após interação
+            if (videoRef.current) {
+              safePlay(videoRef.current);
+            }
+          }}
+        >
+          <div className="text-center text-white">
+            <div className="text-6xl mb-4">▶️</div>
+            <div className="text-2xl font-bold mb-2">TV Saúde Guarapuava</div>
+            <div className="text-lg">Clique para iniciar a reprodução</div>
           </div>
         </div>
       )}

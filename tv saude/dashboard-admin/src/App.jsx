@@ -15,6 +15,9 @@ import RemoteControl from './pages/RemoteControl';
 import Messages from './pages/Messages';
 import Users from './pages/Users';
 import ImageManager from './pages/ImageManager';
+import LocalidadeManager from './pages/LocalidadeManager';
+import StatusMonitor from './components/StatusMonitor';
+import GerenciadorAvisos from './components/GerenciadorAvisos';
 import Login from './pages/Login';
 
 // Componente para proteger rotas que precisam de autenticação
@@ -65,6 +68,9 @@ const AuthenticatedApp = () => {
             <Route path="/controle" element={<RemoteControl />} />
             <Route path="/messages" element={<Messages />} />
             <Route path="/images" element={<ImageManager />} />
+            <Route path="/localidades" element={<LocalidadeManager />} />
+            <Route path="/avisos" element={<GerenciadorAvisos />} />
+            <Route path="/status" element={<StatusMonitor />} />
             <Route path="/users" element={<Users />} />
             <Route path="/settings" element={<Settings />} />
           </Routes>

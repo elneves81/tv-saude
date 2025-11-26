@@ -2,45 +2,62 @@ const sqlite3 = require('sqlite3');
 
 const db = new sqlite3.Database('../database/tv_saude.db');
 
-console.log('🧹 Limpando comandos background_music_off problemáticos...\n');
+console.log('🧹 Limpando comandos de áudio problemáticos...\n');
 
-// Primeiro, vamos ver quantos comandos problemáticos existem
-db.all('SELECT COUNT(*) as count FROM controle_tv WHERE comando = ? AND (parametros IS NULL OR parametros = "null")', ['background_music_off'], (err, rows) => {
-  if (err) {
-    console.error('❌ Erro ao contar comandos:', err);
-    return;
-  }
-  
-  const count = rows[0].count;
-  console.log(`📊 Encontrados ${count} comandos background_music_off problemáticos`);
-  
-  if (count > 0) {
-    // Remover os comandos problemáticos
-    db.run('DELETE FROM controle_tv WHERE comando = ? AND (parametros IS NULL OR parametros = "null")', ['background_music_off'], function(err) {
+// Lista de comandos problemáticos relacionados ao áudio
+const comandosProblematicos = [
+  'background_music_off',
+  'background_music_on',
+  'play',
+  'refresh'
+];
+
+// Função para processar cada comando
+function processarComando(comando) {
+  return new Promise((resolve) => {
+    // Primeiro, contar quantos comandos problemáticos existem
+    db.all('SELECT COUNT(*) as count FROM controle_tv WHERE comando = ? AND (parametros IS NULL OR parametros = "null")', [comando], (err, rows) => {
       if (err) {
-        console.error('❌ Erro ao remover comandos:', err);
-      } else {
-        console.log(`✅ Removidos ${this.changes} comandos background_music_off problemáticos`);
+        console.error(`❌ Erro ao contar comandos ${comando}:`, err);
+        resolve();
+        return;
+      }
+      
+      const count = rows[0].count;
+      if (count > 0) {
+        console.log(`📊 Encontrados ${count} comandos ${comando} problemáticos`);
         
-        // Verificar se ainda há outros comandos problemáticos
-        db.all('SELECT comando, parametros, COUNT(*) as count FROM controle_tv WHERE (parametros IS NULL OR parametros = "null") GROUP BY comando', (err, problematicos) => {
+        // Remover os comandos problemáticos
+        db.run('DELETE FROM controle_tv WHERE comando = ? AND (parametros IS NULL OR parametros = "null")', [comando], function(err) {
           if (err) {
-            console.error('❌ Erro ao verificar outros comandos:', err);
-          } else if (problematicos.length > 0) {
-            console.log('\n⚠️ Outros comandos problemáticos encontrados:');
-            problematicos.forEach(cmd => {
-              console.log(`  - ${cmd.comando} (null) - ${cmd.count}x`);
-            });
+            console.error(`❌ Erro ao remover comandos ${comando}:`, err);
           } else {
-            console.log('\n✅ Banco limpo - sem comandos problemáticos!');
+            console.log(`✅ Removidos ${this.changes} comandos ${comando} problemáticos`);
           }
-          
-          db.close();
+          resolve();
         });
+      } else {
+        console.log(`✅ Nenhum comando ${comando} problemático encontrado`);
+        resolve();
       }
     });
-  } else {
-    console.log('✅ Nenhum comando problemático encontrado!');
-    db.close();
+  });
+}
+
+// Processar todos os comandos sequencialmente
+async function limparTodos() {
+  for (const comando of comandosProblematicos) {
+    await processarComando(comando);
   }
+  
+  console.log('\n🎉 Limpeza de comandos de áudio concluída!');
+  console.log('🔄 Agora teste o sistema de áudio no painel da TV');
+  
+  db.close();
+}
+
+// Executar limpeza
+limparTodos().catch(err => {
+  console.error('❌ Erro durante a limpeza:', err);
+  db.close();
 });

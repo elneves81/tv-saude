@@ -43,6 +43,21 @@ const Sidebar = ({ isOpen, onClose }) => {
       name: 'Imagens',
       icon: '📸'
     },
+    {
+      path: '/localidades',
+      name: 'Localidades',
+      icon: '🌍'
+    },
+    {
+      path: '/avisos',
+      name: 'Avisos Interativos',
+      icon: '🎯'
+    },
+    {
+      path: '/status',
+      name: 'Status IP',
+      icon: '🔍'
+    },
     ...(isAdmin() ? [{
       path: '/users',
       name: 'Usuários',

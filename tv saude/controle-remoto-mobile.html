@@ -1,0 +1,591 @@
+<!-- App móvel para controle remoto da TV Saúde -->
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TV Saúde - Controle Remoto</title>
+    <meta name="description" content="Controle remoto móvel para TV Saúde Guarapuava">
+    
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="manifest.json">
+    <meta name="theme-color" content="#3B82F6">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="TV Saúde Remote">
+    
+    <!-- Icons -->
+    <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192x192.png">
+    <link rel="apple-touch-icon" href="icons/icon-192x192.png">
+    
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: white;
+            user-select: none;
+            overflow-x: hidden;
+        }
+
+        .container {
+            max-width: 400px;
+            margin: 0 auto;
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 30px;
+            padding: 20px 0;
+        }
+
+        .header h1 {
+            font-size: 24px;
+            margin-bottom: 5px;
+        }
+
+        .header p {
+            opacity: 0.8;
+            font-size: 14px;
+        }
+
+        .status-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin: 20px 0;
+            padding: 10px;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            margin-right: 8px;
+            animation: pulse 2s infinite;
+        }
+
+        .status-connected { background-color: #10B981; }
+        .status-disconnected { background-color: #EF4444; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .remote-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin: 30px 0;
+        }
+
+        .remote-button {
+            aspect-ratio: 1;
+            border: none;
+            border-radius: 15px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            color: white;
+            font-size: 18px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            padding: 15px;
+            min-height: 80px;
+        }
+
+        .remote-button:hover {
+            background: rgba(255, 255, 255, 0.25);
+            transform: scale(1.05);
+        }
+
+        .remote-button:active {
+            transform: scale(0.95);
+            background: rgba(255, 255, 255, 0.3);
+        }
+
+        .remote-button.primary {
+            background: rgba(59, 130, 246, 0.8);
+            grid-column: span 2;
+        }
+
+        .remote-button.danger {
+            background: rgba(239, 68, 68, 0.8);
+        }
+
+        .remote-button.success {
+            background: rgba(16, 185, 129, 0.8);
+        }
+
+        .remote-button .icon {
+            font-size: 24px;
+        }
+
+        .remote-button .label {
+            font-size: 11px;
+            opacity: 0.9;
+        }
+
+        .volume-controls {
+            display: flex;
+            gap: 10px;
+            margin: 20px 0;
+        }
+
+        .volume-slider {
+            flex: 1;
+            height: 50px;
+            border-radius: 25px;
+            background: rgba(255, 255, 255, 0.15);
+            appearance: none;
+            cursor: pointer;
+        }
+
+        .current-info {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 20px;
+            margin: 20px 0;
+            text-align: center;
+        }
+
+        .current-info h3 {
+            margin-bottom: 10px;
+            font-size: 16px;
+        }
+
+        .current-info p {
+            opacity: 0.8;
+            font-size: 14px;
+        }
+
+        .feedback {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            font-size: 14px;
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            z-index: 1000;
+        }
+
+        .feedback.show {
+            opacity: 1;
+        }
+
+        .settings-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid rgba(255, 255, 255, 0.2);
+        }
+
+        .settings-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            margin-bottom: 10px;
+        }
+
+        .switch {
+            position: relative;
+            width: 50px;
+            height: 25px;
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 15px;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        .switch.active {
+            background: #3B82F6;
+        }
+
+        .switch::after {
+            content: '';
+            position: absolute;
+            width: 21px;
+            height: 21px;
+            background: white;
+            border-radius: 50%;
+            top: 2px;
+            left: 2px;
+            transition: transform 0.3s;
+        }
+
+        .switch.active::after {
+            transform: translateX(25px);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏥 TV Saúde</h1>
+            <p>Controle Remoto Mobile</p>
+        </div>
+
+        <div class="status-indicator">
+            <div class="status-dot status-disconnected" id="statusDot"></div>
+            <span id="statusText">Conectando...</span>
+        </div>
+
+        <div class="current-info" id="currentInfo">
+            <h3>Carregando informações...</h3>
+            <p>Aguarde um momento</p>
+        </div>
+
+        <div class="remote-grid">
+            <button class="remote-button primary" data-command="play">
+                <span class="icon">▶️</span>
+                <span class="label">PLAY/PAUSE</span>
+            </button>
+
+            <button class="remote-button" data-command="refresh">
+                <span class="icon">🔄</span>
+                <span class="label">REFRESH</span>
+            </button>
+
+            <button class="remote-button" data-command="previous">
+                <span class="icon">⏮️</span>
+                <span class="label">ANTERIOR</span>
+            </button>
+
+            <button class="remote-button" data-command="next">
+                <span class="icon">⏭️</span>
+                <span class="label">PRÓXIMO</span>
+            </button>
+
+            <button class="remote-button" data-command="restart">
+                <span class="icon">🔁</span>
+                <span class="label">REINICIAR</span>
+            </button>
+
+            <button class="remote-button" data-command="volume_up">
+                <span class="icon">🔊</span>
+                <span class="label">VOLUME +</span>
+            </button>
+
+            <button class="remote-button" data-command="volume_down">
+                <span class="icon">🔉</span>
+                <span class="label">VOLUME -</span>
+            </button>
+
+            <button class="remote-button" data-command="mute">
+                <span class="icon">🔇</span>
+                <span class="label">MUDO</span>
+            </button>
+
+            <button class="remote-button danger" data-command="reload_playlist">
+                <span class="icon">📝</span>
+                <span class="label">RECARREGAR</span>
+            </button>
+        </div>
+
+        <div class="settings-section">
+            <h3 style="margin-bottom: 15px; opacity: 0.9;">Configurações</h3>
+            
+            <div class="settings-item">
+                <span>Vibração</span>
+                <div class="switch" id="vibrationSwitch"></div>
+            </div>
+
+            <div class="settings-item">
+                <span>Sons</span>
+                <div class="switch active" id="soundSwitch"></div>
+            </div>
+
+            <div class="settings-item">
+                <span>Modo Escuro</span>
+                <div class="switch" id="darkModeSwitch"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="feedback" id="feedback"></div>
+
+    <script>
+        class TVRemoteApp {
+            constructor() {
+                this.apiUrl = 'http://10.0.50.79:3001/api';
+                this.token = localStorage.getItem('tvremote_token');
+                this.isConnected = false;
+                this.currentVideo = null;
+                this.settings = {
+                    vibration: localStorage.getItem('vibration') === 'true',
+                    sound: localStorage.getItem('sound') !== 'false',
+                    darkMode: localStorage.getItem('darkMode') === 'true'
+                };
+
+                this.init();
+            }
+
+            async init() {
+                this.setupEventListeners();
+                this.loadSettings();
+                await this.authenticate();
+                this.startHeartbeat();
+                this.registerServiceWorker();
+            }
+
+            setupEventListeners() {
+                // Botões do controle remoto
+                document.querySelectorAll('.remote-button').forEach(button => {
+                    button.addEventListener('click', (e) => {
+                        const command = e.target.closest('.remote-button').dataset.command;
+                        this.sendCommand(command);
+                    });
+                });
+
+                // Switches de configuração
+                document.getElementById('vibrationSwitch').addEventListener('click', () => {
+                    this.toggleSetting('vibration');
+                });
+
+                document.getElementById('soundSwitch').addEventListener('click', () => {
+                    this.toggleSetting('sound');
+                });
+
+                document.getElementById('darkModeSwitch').addEventListener('click', () => {
+                    this.toggleSetting('darkMode');
+                });
+
+                // Prevenção de zoom duplo
+                let lastTouchEnd = 0;
+                document.addEventListener('touchend', (e) => {
+                    const now = Date.now();
+                    if (now - lastTouchEnd <= 300) {
+                        e.preventDefault();
+                    }
+                    lastTouchEnd = now;
+                }, false);
+            }
+
+            async authenticate() {
+                if (!this.token) {
+                    // Login automático como admin para o controle remoto
+                    try {
+                        const response = await fetch(`${this.apiUrl}/auth/login`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({
+                                email: 'admin@tvsaude.com',
+                                senha: 'admin123'
+                            })
+                        });
+
+                        const data = await response.json();
+                        if (data.token) {
+                            this.token = data.token;
+                            localStorage.setItem('tvremote_token', this.token);
+                        }
+                    } catch (error) {
+                        console.error('Erro na autenticação:', error);
+                    }
+                }
+                
+                this.updateConnectionStatus();
+            }
+
+            async sendCommand(command) {
+                if (!this.isConnected) {
+                    this.showFeedback('❌ Desconectado da TV', 'error');
+                    return;
+                }
+
+                try {
+                    const response = await fetch(`${this.apiUrl}/controle/comando`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.token}`
+                        },
+                        body: JSON.stringify({ comando: command, parametros: null })
+                    });
+
+                    if (response.ok) {
+                        this.showFeedback(`✅ ${command.toUpperCase()} enviado`);
+                        this.triggerHapticFeedback();
+                        this.playClickSound();
+                    } else {
+                        this.showFeedback('❌ Erro ao enviar comando', 'error');
+                    }
+                } catch (error) {
+                    this.showFeedback('❌ Erro de conexão', 'error');
+                }
+            }
+
+            async updateConnectionStatus() {
+                try {
+                    const response = await fetch(`${this.apiUrl}/health`);
+                    this.isConnected = response.ok;
+                    
+                    if (this.isConnected) {
+                        await this.fetchCurrentVideo();
+                    }
+                } catch (error) {
+                    this.isConnected = false;
+                }
+
+                const statusDot = document.getElementById('statusDot');
+                const statusText = document.getElementById('statusText');
+
+                if (this.isConnected) {
+                    statusDot.className = 'status-dot status-connected';
+                    statusText.textContent = 'Conectado à TV';
+                } else {
+                    statusDot.className = 'status-dot status-disconnected';
+                    statusText.textContent = 'Desconectado';
+                }
+            }
+
+            async fetchCurrentVideo() {
+                try {
+                    const response = await fetch(`${this.apiUrl}/videos/current`, {
+                        headers: { 'Authorization': `Bearer ${this.token}` }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        this.currentVideo = data;
+                        this.updateCurrentVideoDisplay();
+                    }
+                } catch (error) {
+                    console.error('Erro ao buscar vídeo atual:', error);
+                }
+            }
+
+            updateCurrentVideoDisplay() {
+                const currentInfo = document.getElementById('currentInfo');
+                
+                if (this.currentVideo) {
+                    currentInfo.innerHTML = `
+                        <h3>🎬 ${this.currentVideo.titulo}</h3>
+                        <p>${this.currentVideo.descricao || 'Reproduzindo agora'}</p>
+                    `;
+                } else {
+                    currentInfo.innerHTML = `
+                        <h3>📺 TV Saúde</h3>
+                        <p>Nenhum vídeo sendo reproduzido</p>
+                    `;
+                }
+            }
+
+            startHeartbeat() {
+                setInterval(() => {
+                    this.updateConnectionStatus();
+                }, 5000);
+            }
+
+            showFeedback(message, type = 'success') {
+                const feedback = document.getElementById('feedback');
+                feedback.textContent = message;
+                feedback.className = `feedback show ${type}`;
+                
+                setTimeout(() => {
+                    feedback.className = 'feedback';
+                }, 2000);
+            }
+
+            triggerHapticFeedback() {
+                if (this.settings.vibration && 'vibrate' in navigator) {
+                    navigator.vibrate(50);
+                }
+            }
+
+            playClickSound() {
+                if (this.settings.sound) {
+                    const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DqvmkdBjiI0u3jgCAEKGg=');
+                    audio.volume = 0.3;
+                    audio.play().catch(() => {});
+                }
+            }
+
+            toggleSetting(setting) {
+                this.settings[setting] = !this.settings[setting];
+                localStorage.setItem(setting, this.settings[setting]);
+                
+                const switchElement = document.getElementById(`${setting}Switch`);
+                switchElement.classList.toggle('active', this.settings[setting]);
+                
+                this.showFeedback(`${setting} ${this.settings[setting] ? 'ativado' : 'desativado'}`);
+            }
+
+            loadSettings() {
+                Object.entries(this.settings).forEach(([key, value]) => {
+                    const switchElement = document.getElementById(`${key}Switch`);
+                    if (switchElement) {
+                        switchElement.classList.toggle('active', value);
+                    }
+                });
+            }
+
+            async registerServiceWorker() {
+                if ('serviceWorker' in navigator) {
+                    try {
+                        await navigator.serviceWorker.register('sw.js');
+                        console.log('Service Worker registrado');
+                    } catch (error) {
+                        console.log('Erro ao registrar Service Worker:', error);
+                    }
+                }
+            }
+        }
+
+        // Inicializar app quando página carregar
+        document.addEventListener('DOMContentLoaded', () => {
+            new TVRemoteApp();
+        });
+
+        // PWA install prompt
+        let deferredPrompt;
+        window.addEventListener('beforeinstallprompt', (e) => {
+            e.preventDefault();
+            deferredPrompt = e;
+            
+            // Mostrar botão de instalação personalizado
+            const installButton = document.createElement('button');
+            installButton.textContent = '📱 Instalar App';
+            installButton.className = 'remote-button success';
+            installButton.style.position = 'fixed';
+            installButton.style.bottom = '20px';
+            installButton.style.right = '20px';
+            installButton.style.zIndex = '1000';
+            
+            installButton.addEventListener('click', async () => {
+                if (deferredPrompt) {
+                    deferredPrompt.prompt();
+                    const result = await deferredPrompt.userChoice;
+                    deferredPrompt = null;
+                    installButton.remove();
+                }
+            });
+            
+            document.body.appendChild(installButton);
+        });
+    </script>
+</body>
+</html>

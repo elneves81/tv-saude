@@ -1,0 +1,316 @@
+/* Estilos para Avisos Sincronizados */
+
+.avisos-sincronizados {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  z-index: 1000;
+  max-width: 400px;
+  min-width: 300px;
+}
+
+/* Loading */
+.avisos-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 30px;
+  background: rgba(0, 0, 0, 0.8);
+  border-radius: 15px;
+  color: white;
+  text-align: center;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(255, 255, 255, 0.3);
+  border-left: 4px solid #3498db;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 15px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Estado vazio */
+.avisos-vazio {
+  padding: 25px;
+  background: rgba(0, 0, 0, 0.8);
+  border-radius: 15px;
+  color: white;
+  text-align: center;
+}
+
+.icone-vazio {
+  font-size: 3em;
+  margin-bottom: 10px;
+}
+
+/* Card do aviso */
+.aviso-card {
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.95), rgba(255, 255, 255, 0.85));
+  border-radius: 20px;
+  padding: 0;
+  margin-bottom: 15px;
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+  border-left: 6px solid #3498db;
+  overflow: hidden;
+  backdrop-filter: blur(10px);
+  animation: slideIn 0.5s ease-out;
+  position: relative;
+}
+
+.aviso-card.urgente {
+  animation: pulse 2s infinite, slideIn 0.5s ease-out;
+  border-left-color: #f39c12 !important;
+  box-shadow: 0 15px 35px rgba(243, 156, 18, 0.4);
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    box-shadow: 0 15px 35px rgba(243, 156, 18, 0.4);
+  }
+  50% {
+    box-shadow: 0 15px 35px rgba(243, 156, 18, 0.8);
+  }
+}
+
+/* Header do aviso */
+.aviso-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px 10px;
+  background: rgba(0, 0, 0, 0.05);
+}
+
+.aviso-tipo {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.tipo-icone {
+  font-size: 1.2em;
+}
+
+.tipo-nome {
+  font-size: 0.8em;
+  font-weight: 600;
+  color: #666;
+  letter-spacing: 1px;
+}
+
+.badge-urgente {
+  background: linear-gradient(45deg, #f39c12, #e67e22);
+  color: white;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 0.7em;
+  font-weight: 700;
+  animation: blink 1s infinite alternate;
+}
+
+@keyframes blink {
+  0% { opacity: 1; }
+  100% { opacity: 0.7; }
+}
+
+/* Conteúdo do aviso */
+.aviso-conteudo {
+  padding: 0 20px 15px;
+}
+
+.aviso-titulo {
+  margin: 0 0 10px 0;
+  font-size: 1.3em;
+  font-weight: 700;
+  color: #2c3e50;
+  line-height: 1.3;
+}
+
+.aviso-mensagem {
+  color: #34495e;
+  line-height: 1.5;
+  margin: 0;
+}
+
+.aviso-mensagem p {
+  margin: 5px 0;
+}
+
+/* Rodapé do aviso */
+.aviso-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 20px 15px;
+  font-size: 0.8em;
+  color: #7f8c8d;
+}
+
+.aviso-info {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.horario, .validade {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.contador-avisos {
+  background: rgba(52, 73, 94, 0.1);
+  padding: 4px 8px;
+  border-radius: 12px;
+  font-weight: 600;
+  color: #34495e;
+}
+
+/* Barra de progresso */
+.progress-bar {
+  height: 4px;
+  background: rgba(0, 0, 0, 0.1);
+  position: relative;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  width: 100%;
+  background: #3498db;
+  transform: translateX(-100%);
+  animation: progress linear infinite;
+}
+
+@keyframes progress {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(0); }
+}
+
+/* Status de sincronização */
+.status-sync {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
+}
+
+.sync-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  border-radius: 20px;
+  font-size: 0.7em;
+}
+
+.sync-indicator.ativo .sync-icon {
+  animation: rotate 2s linear infinite;
+}
+
+.sync-indicator.inativo {
+  background: rgba(231, 76, 60, 0.8);
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.sync-text {
+  font-weight: 600;
+}
+
+.sync-time {
+  opacity: 0.7;
+  margin-left: 5px;
+}
+
+/* Controles de desenvolvimento */
+.controles-dev {
+  display: flex;
+  gap: 10px;
+  margin-top: 10px;
+  justify-content: center;
+}
+
+.controles-dev button {
+  background: rgba(52, 152, 219, 0.8);
+  color: white;
+  border: none;
+  padding: 8px 12px;
+  border-radius: 20px;
+  cursor: pointer;
+  font-size: 0.8em;
+  transition: all 0.3s ease;
+}
+
+.controles-dev button:hover {
+  background: rgba(52, 152, 219, 1);
+  transform: translateY(-2px);
+}
+
+/* Variações por tipo de aviso */
+.aviso-card.informativo { border-left-color: #3498db; }
+.aviso-card.consulta { border-left-color: #2980b9; }
+.aviso-card.medicacao { border-left-color: #27ae60; }
+.aviso-card.campanha { border-left-color: #e74c3c; }
+.aviso-card.urgencia { border-left-color: #f39c12; }
+.aviso-card.horario { border-left-color: #34495e; }
+.aviso-card.evento { border-left-color: #16a085; }
+
+/* Responsividade */
+@media (max-width: 768px) {
+  .avisos-sincronizados {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    max-width: none;
+  }
+  
+  .aviso-titulo {
+    font-size: 1.1em;
+  }
+  
+  .aviso-footer {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+}
+
+/* Modo tela cheia para TVs */
+@media (min-width: 1920px) {
+  .avisos-sincronizados {
+    max-width: 500px;
+    top: 40px;
+    right: 40px;
+  }
+  
+  .aviso-titulo {
+    font-size: 1.5em;
+  }
+  
+  .aviso-mensagem {
+    font-size: 1.1em;
+  }
+}

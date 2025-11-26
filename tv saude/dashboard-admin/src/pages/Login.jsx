@@ -116,18 +116,6 @@ const Login = () => {
               )}
             </button>
           </form>
-
-          {/* Informações de acesso padrão */}
-          <div className="p-4 mt-8 rounded-md bg-gray-50">
-            <h3 className="mb-2 text-sm font-medium text-gray-900">Acesso Padrão:</h3>
-            <div className="space-y-1 text-sm text-gray-600">
-              <p><strong>Email:</strong> admin@tvsaude.com</p>
-              <p><strong>Senha:</strong> admin123</p>
-            </div>
-            <p className="mt-2 text-xs text-gray-500">
-              Altere a senha padrão após o primeiro acesso
-            </p>
-          </div>
         </div>
 
         {/* Footer */}
